@@ -15,4 +15,6 @@ typedef struct cell
 
 }Cell;
 
+extern void printCell(Cell c);
+
 #endif

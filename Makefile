@@ -1,3 +1,6 @@
+grid.o: grid.c grid.h
+	gcc -c  -std=c89 -pedantic grid.c
+
 taxi.o: taxi.c taxi.h
 	gcc -c  -std=c89 -pedantic taxi.c
 
@@ -10,5 +13,5 @@ cell.o: cell.h cell.c
 Master.o: Master.c
 	gcc -c -std=c89 -pedantic Master.c
 
-TheGame : Master.o taxi.o cell.o mapgenerator.o
-	gcc Master.o taxi.o cell.o mapgenerator.o -o TheGame
+TheGame : Master.o taxi.o cell.o mapgenerator.o grid.o
+	gcc Master.o taxi.o cell.o mapgenerator.o grid.o -o TheGame

@@ -1,27 +1,54 @@
 #include "cell.h"
+#include "grid.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-Cell** AllocateMap(int Height, int Width)
+void printMap(Grid grid)
 {
-  printf("MapGenerator: Calling the shmget function...");
-  int shmID = shmget(777, sizeof(Cell) * Height * Width, IPC_CREAT | 644);
+  size_t i,j;
 
-  if(shmID == -1)
+  printf("Printing the GRID:\n");
+  for (i = 0; i < grid.height; i++)
   {
-    fprintf(stderr, "Error while allocating the shared memory segment\n");
-    exit(1);
+    for (j = 0; j < grid.width; j++)
+    {
+      printCell(grid.grid[i][j]);
+    }
+    printf("\n");
   }
+}
 
-  Cell grid[Height][Width] = shmat(shmID, NULL, 0); /*NULL: non need to attach to a specific location
-                                                         0: non need for specific flags              */
+Grid AllocateMap(int height, int width)
+{
+  int shmID;
+  Grid grid;
+  int i;
+  int j;
+  Grid* p;
+
+  printf("MapGenerator: Calling the shmget function...\n");
+  shmID = shmget(777, sizeof(Grid), IPC_CREAT | 0644);
+
+      if(shmID == -1)
+      {
+        fprintf(stderr, "Error while allocating the shared memory segment\n");
+        exit(1);
+      }
+      grid.height = height;
+      grid.width = width;
+      p = shmat(shmID, NULL, 0);
+      grid.grid = *p;
+  printMap(grid);
   return grid;
 }
 
-void generateMap(int Height, int Width)
-{
-  Cell grid[Height][Width] = AllocateMap(Height,Width);
 
+
+void generateMap(int height, int width)
+{
+  Grid grid;
+  grid = AllocateMap(height,width);
+  printf("The map has been Allocated\n");
 }
