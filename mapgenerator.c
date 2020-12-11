@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <time.h>
+#define Boolean int
 #define FALSE 0
 #define TRUE !FALSE
 
@@ -57,7 +59,7 @@ Grid* AllocateMap(int height, int width)
       fprintf(stderr,"shmget failed");
       exit(1);
     }
-    grid->grid[i] = (Cell*)shmat(shmID, NULL, 0); 
+    grid->grid[i] = (Cell*)shmat(shmID, NULL, 0);
     printf("#%d row attatched\n",i);
     if (grid->grid[i] == NULL)
     {
@@ -89,9 +91,55 @@ Grid* AllocateMap(int height, int width)
   }
   return grid;
 }
-void generateMap(int height, int width)
+
+Boolean canBeHole(Grid grid, Cell c)
 {
-  Grid grid;
-  grid = *AllocateMap(height,width);
-  printf("The map has been Allocated\n");
+  int i=0,j=0;
+  if(c.available == FALSE) return FALSE;
+  else
+  {
+    for(i = c.x-1; i <= c.x+1; i++)
+    {
+      for(j = c.y-1; j <= c.y+1; j++)
+      {
+        if(i >= 0 && j>= 0 && i < grid.height && j < grid.width) /* We check if we are not out of bounds*/
+        {
+          if(i == c.x && j == c.y) continue;
+          else if(grid.grid[i][j].available == FALSE) return FALSE;
+        }
+      }
+
+    }
+    return TRUE;
+  }
+}
+
+void placeHoles(Grid* grid, int numberOfHoles)
+{
+  int i,j;
+  time_t t;
+  srand((unsigned) time(&t)); /* Initializing the seed */
+
+  while(numberOfHoles > 0)/*Number of holes will keep track of how many holes are still to be placed*/
+  {
+    i = rand() % grid->height;
+    j = rand() % grid->width;
+
+    if(canBeHole(*grid,grid->grid[i][j]))
+    {
+      grid->grid[i][j].available = FALSE;
+      numberOfHoles--;
+    }
+  }
+}
+
+void generateMap(int height, int width, int numberOfHoles)
+{
+  Grid* grid;
+  grid = AllocateMap(height,width);
+  printf("The map has been Allocated\n Starting to place holes!\n");
+  placeHoles(grid, numberOfHoles);
+  printf("Holes placed done, now printing\n");
+  printMap(*grid);
+
 }
