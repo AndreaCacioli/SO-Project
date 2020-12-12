@@ -41,11 +41,13 @@ Grid* AllocateMap(int height, int width)
   grid = (Grid*)shmat(shmID, NULL, 0);
   grid->height = height;
   grid->width = width;
+  shmctl(shmID, IPC_RMID, NULL); /* market disallocazione del puntatore */
 
 
   shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height * width, IPC_CREAT | 0644);
   printf("Finding %lu bytes the actual grid, found at place %d\n",sizeof(Cell) * height * width,shmID);
   grid->grid = (Cell**)shmat(shmID, NULL, 0);
+  shmctl(shmID, IPC_RMID, NULL);  /* market di disallocazione della griglia */
   printf("The grid of the grid has been allocated successfully =D\n");
 
   /* Allocating each row */
@@ -60,6 +62,7 @@ Grid* AllocateMap(int height, int width)
       exit(1);
     }
     grid->grid[i] = (Cell*)shmat(shmID, NULL, 0);
+    shmctl(shmID, IPC_RMID, NULL); /* market di disallocazione di ogni riga*/
     printf("#%d row attatched\n",i);
     if (grid->grid[i] == NULL)
     {
@@ -87,6 +90,7 @@ Grid* AllocateMap(int height, int width)
       printf("Allocated (%d,%d) cell:\n",i,j);
       printCell(grid->grid[i][j]);
       printf("\n");
+      shmctl(shmID, IPC_RMID, NULL); /* market di disallocazione di ogni colonna*/
     }
   }
   return grid;
