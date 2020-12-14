@@ -106,7 +106,7 @@ Boolean canBeHole(Grid grid, Cell c)
     {
       for(j = c.y-1; j <= c.y+1; j++)
       {
-        if(i >= 0 && j>= 0 && i < grid.height && j < grid.width) /* We check if we are not out of bounds*/
+        if(i >= 0 && j>= 0 && i < grid.height && j < grid.width) /* We check if we are not out of bounds */
         {
           if(i == c.x && j == c.y) continue;
           else if(grid.grid[i][j].available == FALSE) return FALSE;
@@ -136,14 +136,32 @@ void placeHoles(Grid* grid, int numberOfHoles)
     }
   }
 }
+void placeSources(Grid* grid, int Sour)
+{
+  int i,j;
+  time_t t;
+  srand((unsigned) time(&t)); /* Initializing the seed */
 
+  while(Sour > 0)/*Number of holes will keep track of how many holes are still to be placed*/
+  {
+    i = rand() % grid->height;
+    j = rand() % grid->width;
+
+    if(grid->grid[i][j].available && !grid->grid[i][j].source)
+    {
+      grid->grid[i][j].source = TRUE;
+      Sour--;
+    }
+  }
+}
 void generateMap(int height, int width, int numberOfHoles)
 {
   Grid* grid;
   grid = AllocateMap(height,width);
   printf("The map has been Allocated\n Starting to place holes!\n");
   placeHoles(grid, numberOfHoles);
-  printf("Holes placed done, now printing\n");
+  printf("Holes placed done, now placing sources\n");
+  placeSources(grid,5);
   printMap(*grid);
 
 }

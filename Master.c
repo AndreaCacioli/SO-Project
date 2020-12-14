@@ -6,25 +6,25 @@
 #include "cell.h"
 #include "mapgenerator.h"
 #define FALSE 0
-#define TRUE !FALSE 
+#define TRUE !FALSE
 int SO_TAXI;
 int SO_SOURCES;
 int SO_HOLES;
-int SO_TOP_CELLS; 
+int SO_TOP_CELLS;
 int SO_CAP_MIN;
 int SO_CAP_MAX;
-int SO_TIMENSEC_MIN; 
-int SO_TIMENSEC_MAX; 
-int SO_TIMEOUT; 
-int SO_DURATION; 
+int SO_TIMENSEC_MIN;
+int SO_TIMENSEC_MAX;
+int SO_TIMEOUT;
+int SO_DURATION;
 
 void lettura_file();
 
 int main(void)
-{ 
+{
     char deallocator[50] = "";
-    lettura_file();
-    generateMap(7,3,6);
+    /*lettura_file();*/
+    generateMap(7,3,3);
     /* TODO: write deallocator function */
     /*
 
@@ -37,7 +37,7 @@ int main(void)
     */
 
 
-  
+
   exit(EXIT_SUCCESS);
 }
 
@@ -45,12 +45,12 @@ void lettura_file(){
   int i;
   FILE* configFile;
   char* path = "./Input.config";
-  char string[15]; 
+  char string[15];
   int parametri[10];
   int value;
-   
+
   i=0;
-  
+
   if((configFile=fopen(path, "r"))==NULL) {
 	printf("Errore nell'apertura del file'");
 	exit(1);
@@ -61,7 +61,7 @@ void lettura_file(){
   	i++;
   }
   fclose(configFile);
-  
+
   SO_TAXI=parametri[0];
   SO_SOURCES=parametri[1];
   SO_TOP_CELLS=parametri[2];

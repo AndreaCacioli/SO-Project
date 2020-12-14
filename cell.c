@@ -3,5 +3,5 @@
 
 void printCell(Cell c)
 {
-  printf("CELL (%d,%d) %c\t",c.x,c.y,c.available?'O':'X');
+  printf("CELL (%d,%d) %c %c\t",c.x,c.y,c.available?'O':'X',c.source?'S':'-');
 }
