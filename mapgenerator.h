@@ -4,5 +4,6 @@
 
 extern Grid* generateMap(int Height, int Width, int numberOfHoles,int numberOfSources);
 extern void printMap(Grid grid);
+extern void deallocateAllSHM(Grid* grid);
 
 #endif

@@ -165,3 +165,14 @@ Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources)
   printMap(*grid);
   return grid;
 }
+
+void deallocateAllSHM(Grid* grid)
+{
+  size_t i,j;
+  for (i = 0; i < grid->height; i++)
+  {
+    shmdt(grid->grid[i]);
+  }
+  shmdt(grid->grid);
+  shmdt(grid);
+}

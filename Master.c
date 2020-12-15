@@ -36,7 +36,6 @@ int main(void)
     lettura_file();
     MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES);
 
-
     outcome = pipe(fd);
     if(outcome == -1)
     {
@@ -49,9 +48,9 @@ int main(void)
     {
       if((pid = fork()) == 0)
       {
-        /*char message[50] = "";
-        sprintf(message, "Ciao dal figlio\n");*/
-        sendMsgOnPipe("dvhjfbnsvskjn",fd[0],fd[1]);
+        char message[50] = "";
+        sprintf(message, "Ciao dal figlio %d",MAPPA->grid[0][0].x);
+        sendMsgOnPipe(message,fd[0],fd[1]);
         close(fd[1]);
         break;
       }
@@ -64,16 +63,13 @@ int main(void)
           fprintf(stderr, "Could not read from pipe\n");
           exit(1);
         }
+
+
         puts(buf);
         close(fd[0]);
 
       }
     }
-
-
-
-
-
 
 
     /* TODO: write deallocator function */
@@ -86,6 +82,7 @@ int main(void)
     system("ipcs");
 
     */
+  deallocateAllSHM(MAPPA);
 
   exit(EXIT_SUCCESS);
 }
