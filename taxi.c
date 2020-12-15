@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include "taxi.h"
 
 void printTaxi(Taxi t)
@@ -11,4 +13,10 @@ void printTaxi(Taxi t)
   printf("|TLT:          %d       |\n",t.TLT);
   printf("|Total Trips:  %d       |\n",t.totalTrips);
   printf("-------------------------\n");
+}
+
+void sendMsgOnPipe(char* s, int fdRead, int fdWrite)
+{
+  close(fdRead);
+  write(fdWrite, s ,strlen(s) * sizeof(char));
 }

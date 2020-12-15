@@ -154,14 +154,14 @@ void placeSources(Grid* grid, int Sour)
     }
   }
 }
-void generateMap(int height, int width, int numberOfHoles)
+Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources)
 {
   Grid* grid;
   grid = AllocateMap(height,width);
   printf("The map has been Allocated\n Starting to place holes!\n");
   placeHoles(grid, numberOfHoles);
   printf("Holes placed done, now placing sources\n");
-  placeSources(grid,5);
+  placeSources(grid,numberOfSources);
   printMap(*grid);
-
+  return grid;
 }

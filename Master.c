@@ -2,11 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
+#include <unistd.h>
 #include "taxi.h"
 #include "cell.h"
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
+#define SO_HEIGHT 7
+#define SO_WIDTH 3
+
 int SO_TAXI;
 int SO_SOURCES;
 int SO_HOLES;
@@ -22,10 +26,56 @@ void lettura_file();
 
 int main(void)
 {
+    Grid* MAPPA;
+    char buf[500] = "";
+    pid_t pid;
+    int outcome = 0;
     char deallocator[50] = "";
+    int i = 0;
+    int fd[2];
     lettura_file();
-    generateMap(7,3,3);
-    
+    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES);
+
+
+    outcome = pipe(fd);
+    if(outcome == -1)
+    {
+      fprintf(stderr, "Error creating pipe\n");
+      exit(1);
+    }
+
+
+    for(i = 0 ; i < SO_TAXI ; i++)
+    {
+      if((pid = fork()) == 0)
+      {
+        /*char message[50] = "";
+        sprintf(message, "Ciao dal figlio\n");*/
+        sendMsgOnPipe("dvhjfbnsvskjn",fd[0],fd[1]);
+        close(fd[1]);
+        break;
+      }
+      else
+      {
+        close(fd[1]);
+        wait(NULL);
+        if(read(fd[0], buf, 500) == 0)
+        {
+          fprintf(stderr, "Could not read from pipe\n");
+          exit(1);
+        }
+        puts(buf);
+        close(fd[0]);
+
+      }
+    }
+
+
+
+
+
+
+
     /* TODO: write deallocator function */
     /*
 
@@ -45,15 +95,13 @@ void lettura_file(){
   char* path = "./Input.config";
   char string[20];
   int value;
-  
+
   if((configFile=fopen(path, "r"))==NULL) {
 	printf("Errore nell'apertura del file'");
 	exit(1);
   }
-  while(!feof(configFile)){
+  while(fscanf(configFile,"%s %d",string,&value) != EOF){
 
-  	fscanf(configFile,"%s %d",string,&value);
-  	
   	if(strcmp(string,"SO_TAXI")==0){
   		SO_TAXI=value;
   	}
@@ -85,7 +133,7 @@ void lettura_file(){
   		SO_DURATION=value;
   	}
   	else
-  	    printf("Stringa letta non è presente come parametro nel testo\n");
+  	    printf("%s non è presente come parametro nel testo\n",string);
   }
   fclose(configFile);
 }

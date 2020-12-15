@@ -16,5 +16,6 @@ typedef struct taxi
 }Taxi;
 
 extern void printTaxi(Taxi t);
+extern void sendMsgOnPipe(char* s,int fdRead, int fdWrite);
 
 #endif
