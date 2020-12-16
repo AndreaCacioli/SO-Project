@@ -8,15 +8,15 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 7
-#define SO_WIDTH 3
+#define SO_HEIGHT 8
+#define SO_WIDTH 2
 
 int SO_TAXI;
 int SO_SOURCES;
 int SO_HOLES;
 int SO_TOP_CELLS;
-int SO_CAP_MIN;
-int SO_CAP_MAX;
+int SO_CAP_MIN; /* Inclusive */
+int SO_CAP_MAX; /* Esclusive */
 int SO_TIMENSEC_MIN;
 int SO_TIMENSEC_MAX;
 int SO_TIMEOUT;
@@ -27,14 +27,14 @@ void lettura_file();
 int main(void)
 {
     Grid* MAPPA;
-    char buf[500] = "";
+    char buf[1] = " ";
     pid_t pid;
     int outcome = 0;
     char deallocator[50] = "";
     int i = 0;
     int fd[2];
     lettura_file();
-    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES);
+    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);
 
     outcome = pipe(fd);
     if(outcome == -1)
@@ -46,42 +46,31 @@ int main(void)
 
     for(i = 0 ; i < SO_TAXI ; i++)
     {
-      if((pid = fork()) == 0)
+      pid = fork();
+      if(pid == 0)
       {
+        printf("Sono nato %d\n",getpid());
         char message[50] = "";
-        sprintf(message, "Ciao dal figlio %d",MAPPA->grid[0][0].x);
+        sprintf(message, "Ciao dal figlio %d\n",MAPPA->grid[0][0].x);
         sendMsgOnPipe(message,fd[0],fd[1]);
         close(fd[1]);
+        printf("Sono morto %d\n",getpid());
         break;
       }
       else
       {
-        close(fd[1]);
         wait(NULL);
-        if(read(fd[0], buf, 500) == 0)
+        while( buf[0] != '\n') /*Ciclo di lettura di UN messaggio*/
         {
-          fprintf(stderr, "Could not read from pipe\n");
-          exit(1);
+          read(fd[0], buf, 1);
+          printf("%s", buf);
         }
-
-
-        puts(buf);
-        close(fd[0]);
-
+        printf("Ho letto un a capo\n");
+        buf[0] = ' ';
       }
     }
-
-
-    /* TODO: write deallocator function */
-    /*
-
-    system("ipcs");
-    sprintf(deallocator, "ipcrm -M %d", IPC_PRIVATE);;
-    printf("Cleanup...\n");
-    system(deallocator);
-    system("ipcs");
-
-    */
+    close(fd[1]);
+    close(fd[0]);
   deallocateAllSHM(MAPPA);
 
   exit(EXIT_SUCCESS);

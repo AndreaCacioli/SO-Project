@@ -24,12 +24,15 @@ void printMap(Grid grid)
   }
 }
 
-Grid* AllocateMap(int height, int width)
+Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, int maxDelay)
 {
   int shmID;
   Grid* grid;
   int i;
   int j;
+  time_t t;
+
+  srand((unsigned) time(&t)); /* Initializing the seed */
 
   shmID = shmget(IPC_PRIVATE, sizeof(Grid), IPC_CREAT | 0644);
   printf("Finding %lu bytes for grid object, found at place %d\n",sizeof(Grid),shmID);
@@ -87,6 +90,10 @@ Grid* AllocateMap(int height, int width)
       grid->grid[i][j].x = i;
       grid->grid[i][j].y = j;
       grid->grid[i][j].available = TRUE;
+      grid->grid[i][j].source = FALSE;
+      grid->grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
+      grid->grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
+      grid->grid[i][j].crossings = 0;
       printf("Allocated (%d,%d) cell:\n",i,j);
       printCell(grid->grid[i][j]);
       printf("\n");
@@ -154,10 +161,10 @@ void placeSources(Grid* grid, int Sour)
     }
   }
 }
-Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources)
+Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, int minCap, int maxCap, int minDelay, int maxDelay)
 {
   Grid* grid;
-  grid = AllocateMap(height,width);
+  grid = AllocateMap(height,width, minCap, maxCap, minDelay, maxDelay);
   printf("The map has been Allocated\n Starting to place holes!\n");
   placeHoles(grid, numberOfHoles);
   printf("Holes placed done, now placing sources\n");

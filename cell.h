@@ -11,7 +11,7 @@ typedef struct cell
   int y;
   Boolean available;
   Boolean source;
-  struct taxi* taxisOnCell;
+  int crossings;
 
 }Cell;
 
