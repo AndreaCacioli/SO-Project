@@ -2,14 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
+#include <sys/sem.h>
 #include <unistd.h>
+#include <time.h>
 #include "taxi.h"
 #include "cell.h"
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 8
-#define SO_WIDTH 2
+#define SO_HEIGHT 3
+#define SO_WIDTH 3
 
 int SO_TAXI;
 int SO_SOURCES;
@@ -23,18 +25,23 @@ int SO_TIMEOUT;
 int SO_DURATION;
 
 void lettura_file();
+void cleanup();
+
+Grid* MAPPA;
+int fd[2];
+int semSetKey = 0;
 
 int main(void)
 {
-    Grid* MAPPA;
     char buf[1] = " ";
     pid_t pid;
     int outcome = 0;
     char deallocator[50] = "";
     int i = 0;
-    int fd[2];
+
     lettura_file();
     MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);
+    semSetKey = semget(IPC_PRIVATE,MAPPA->height * MAPPA->width, SEM_R | SEM_A);
 
     outcome = pipe(fd);
     if(outcome == -1)
@@ -44,35 +51,69 @@ int main(void)
     }
 
 
-    for(i = 0 ; i < SO_TAXI ; i++)
+    for(i = 0 ; i < SO_TAXI ; i++) /*Zona di creazione dei processi TAXI*/
     {
       pid = fork();
-      if(pid == 0)
+      if(pid == 0) /* TAXI */
       {
-        printf("Sono nato %d\n",getpid());
+        Taxi taxi;
         char message[50] = "";
+        int x,y;
+        srand(getpid()); /* Initializing the seed to pid*/
+        do
+        {
+          x = (rand() % MAPPA->height);
+          y = (rand() % MAPPA->width);
+          /* Handle Semaphore */
+        } while(!MAPPA->grid[x][y].available);
+
+
+        taxi.position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
+        taxi.busy = FALSE;
+        printf("\n");
+        taxi.destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
+        taxi.TTD = 0;
+        taxi.TLT = 0;
+        taxi.totalTrips = 0;
+
+        printTaxi(taxi);
+
+        /*
         sprintf(message, "Ciao dal figlio %d\n",MAPPA->grid[0][0].x);
         sendMsgOnPipe(message,fd[0],fd[1]);
+        */
         close(fd[1]);
-        printf("Sono morto %d\n",getpid());
-        break;
+        exit(EXIT_SUCCESS);
       }
-      else
+    }
+
+    if(pid != 0) /* Zona del master dopo aver creato i figli */
+    {
+      signal(SIGALRM, cleanup); /*Installato Handler*/
+      alarm(SO_DURATION);
+      while(1) /* Gestione segnale di terminazione */
       {
-        wait(NULL);
         while( buf[0] != '\n') /*Ciclo di lettura di UN messaggio*/
         {
           read(fd[0], buf, 1);
           printf("%s", buf);
         }
-        printf("Ho letto un a capo\n");
         buf[0] = ' ';
-      }
-    }
-    close(fd[1]);
-    close(fd[0]);
-  deallocateAllSHM(MAPPA);
 
+      }
+      /* CLEANUP */
+      cleanup();
+
+    }
+  exit(EXIT_SUCCESS);
+}
+
+void cleanup()
+{
+  close(fd[1]);
+  close(fd[0]);
+  deallocateAllSHM(MAPPA);
+  semctl(semSetKey,0,IPC_RMID);
   exit(EXIT_SUCCESS);
 }
 
