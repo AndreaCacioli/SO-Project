@@ -37,11 +37,11 @@ int main(void)
     pid_t pid;
     int outcome = 0;
     char deallocator[50] = "";
-    int i = 0;
+    int i = 0,j=0;
 
     lettura_file();
     MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);
-    semSetKey = semget(IPC_PRIVATE,MAPPA->height * MAPPA->width, SEM_R | SEM_A);
+    semSetKey = initSem(MAPPA);
 
     outcome = pipe(fd);
     if(outcome == -1)
@@ -50,6 +50,14 @@ int main(void)
       exit(1);
     }
 
+    for(i = 0; i < MAPPA->height; i++)
+    {
+      for(j = 0; j < MAPPA->width; j++)
+      {
+        printf("%d\t", semctl(semSetKey, /* semnum= */ cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
+      }
+      printf("\n");
+    }
 
     for(i = 0 ; i < SO_TAXI ; i++) /*Zona di creazione dei processi TAXI*/
     {
@@ -64,9 +72,7 @@ int main(void)
         {
           x = (rand() % MAPPA->height);
           y = (rand() % MAPPA->width);
-          /* Handle Semaphore */
         } while(!MAPPA->grid[x][y].available);
-
 
         taxi.position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
         taxi.busy = FALSE;
@@ -107,6 +113,8 @@ int main(void)
     }
   exit(EXIT_SUCCESS);
 }
+
+
 
 void cleanup()
 {

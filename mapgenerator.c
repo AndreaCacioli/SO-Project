@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/sem.h>
 #include <time.h>
 #define Boolean int
 #define FALSE 0
@@ -94,6 +95,7 @@ Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, i
       grid->grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
       grid->grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
       grid->grid[i][j].crossings = 0;
+
       printf("Allocated (%d,%d) cell:\n",i,j);
       printCell(grid->grid[i][j]);
       printf("\n");
@@ -161,6 +163,26 @@ void placeSources(Grid* grid, int Sour)
     }
   }
 }
+
+int cellToSemNum(Cell c, int width)
+{
+  return c.x * width + c.y;
+}
+
+int initSem (Grid* grid)
+{
+  int i,j;
+  int ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT | SEM_R | SEM_A);
+  for(i = 0; i < grid->height; i++)
+  {
+    for(j = 0; j < grid->width; j++)
+    {
+      semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, grid->grid[i][j].capacity);
+    }
+  }
+  return ret;
+}
+
 Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, int minCap, int maxCap, int minDelay, int maxDelay)
 {
   Grid* grid;

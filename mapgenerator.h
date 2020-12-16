@@ -5,5 +5,7 @@
 extern Grid* generateMap(int Height, int Width, int numberOfHoles,int numberOfSources , int minCap, int maxCap, int minDelay, int maxDelay);
 extern void printMap(Grid grid);
 extern void deallocateAllSHM(Grid* grid);
+extern int initSem (Grid* grid);
+extern int cellToSemNum(Cell c, int width);
 
 #endif
