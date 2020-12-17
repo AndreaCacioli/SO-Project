@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
@@ -26,6 +27,8 @@ int SO_DURATION;
 
 void lettura_file();
 void cleanup();
+void setup();
+void initTaxi(Taxi* taxi);
 
 Grid* MAPPA;
 int fd[2];
@@ -35,29 +38,9 @@ int main(void)
 {
     char buf[1] = " ";
     pid_t pid;
-    int outcome = 0;
-    char deallocator[50] = "";
-    int i = 0,j=0;
-
-    lettura_file();
-    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);
-    semSetKey = initSem(MAPPA);
-
-    outcome = pipe(fd);
-    if(outcome == -1)
-    {
-      fprintf(stderr, "Error creating pipe\n");
-      exit(1);
-    }
-
-    for(i = 0; i < MAPPA->height; i++)
-    {
-      for(j = 0; j < MAPPA->width; j++)
-      {
-        printf("%d\t", semctl(semSetKey, /* semnum= */ cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
-      }
-      printf("\n");
-    }
+    int i = 0;
+    system("sudo sysctl kern.sysv.shmseg=256");
+    setup();
 
     for(i = 0 ; i < SO_TAXI ; i++) /*Zona di creazione dei processi TAXI*/
     {
@@ -66,28 +49,16 @@ int main(void)
       {
         Taxi taxi;
         char message[50] = "";
-        int x,y;
-        srand(getpid()); /* Initializing the seed to pid*/
-        do
-        {
-          x = (rand() % MAPPA->height);
-          y = (rand() % MAPPA->width);
-        } while(!MAPPA->grid[x][y].available);
 
-        taxi.position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
-        taxi.busy = FALSE;
-        printf("\n");
-        taxi.destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
-        taxi.TTD = 0;
-        taxi.TLT = 0;
-        taxi.totalTrips = 0;
-
+        close(fd[0]);
+        initTaxi(&taxi); /*We initialise the taxi structure*/
+        setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
         printTaxi(taxi);
-
-        /*
-        sprintf(message, "Ciao dal figlio %d\n",MAPPA->grid[0][0].x);
-        sendMsgOnPipe(message,fd[0],fd[1]);
-        */
+        while(move(&taxi,MAPPA,fd[1]) == 0)
+        {
+          
+        }
+        printTaxi(taxi);
         close(fd[1]);
         exit(EXIT_SUCCESS);
       }
@@ -171,4 +142,51 @@ void lettura_file(){
   	    printf("%s non è presente come parametro nel testo\n",string);
   }
   fclose(configFile);
+}
+
+
+void setup()
+{
+  int i = 0,j = 0;
+  int outcome = 0;
+
+  lettura_file();
+  MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);
+  semSetKey = initSem(MAPPA);
+
+  outcome = pipe(fd);
+  if(outcome == -1)
+  {
+    fprintf(stderr, "Error creating pipe\n");
+    exit(1);
+  }
+
+  for(i = 0; i < MAPPA->height; i++)
+  {
+    for(j = 0; j < MAPPA->width; j++)
+    {
+      printf("%d\t", semctl(semSetKey, /* semnum= */ cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
+    }
+    printf("\n");
+  }
+}
+
+
+void initTaxi(Taxi* taxi)
+{
+  int x,y;
+  srand(getpid()); /* Initializing the seed to pid*/
+  do
+  {
+    x = (rand() % MAPPA->height);
+    y = (rand() % MAPPA->width);
+  } while(!MAPPA->grid[x][y].available);
+
+  taxi->position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
+  taxi->busy = FALSE;
+  printf("\n");
+  taxi->destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
+  taxi->TTD = 0;
+  taxi->TLT = 0;
+  taxi->totalTrips = 0;
 }

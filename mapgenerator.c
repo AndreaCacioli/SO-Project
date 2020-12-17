@@ -39,7 +39,7 @@ Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, i
   printf("Finding %lu bytes for grid object, found at place %d\n",sizeof(Grid),shmID);
   if (shmID == -1)
   {
-    fprintf(stderr,"shmget failed");
+    fprintf(stderr,"shmget failed\n");
     exit(1);
   }
   grid = (Grid*)shmat(shmID, NULL, 0);
@@ -62,7 +62,7 @@ Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, i
     printf("Finding %lu bytes the #%d row, found at place %d\n",sizeof(Cell) * width,i,shmID);
     if (shmID == -1)
     {
-      fprintf(stderr,"shmget failed");
+      fprintf(stderr,"shmget failed\n");
       exit(1);
     }
     grid->grid[i] = (Cell*)shmat(shmID, NULL, 0);
@@ -70,7 +70,7 @@ Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, i
     printf("#%d row attatched\n",i);
     if (grid->grid[i] == NULL)
     {
-      fprintf(stderr,"shmat failed");
+      fprintf(stderr,"shmat failed\n");
       exit(1);
     }
     for(j = 0; j<width;j++)
@@ -79,13 +79,13 @@ Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, i
       printf("Finding %lu bytes for cell at (%d,%d), found at place %d\n",sizeof(Cell),i,j,shmID);
       if (shmID == -1)
       {
-        fprintf(stderr,"shmget failed");
+        fprintf(stderr,"shmget failed\n");
         exit(1);
       }
       grid->grid[i][j] = *((Cell*)shmat(shmID, NULL, 0));
       if (grid->grid[i] == NULL)
       {
-        fprintf(stderr,"shmat failed");
+        fprintf(stderr,"shmat failed\n");
         exit(1);
       }
       grid->grid[i][j].x = i;
