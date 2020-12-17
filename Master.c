@@ -11,8 +11,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 3
-#define SO_WIDTH 3
+#define SO_HEIGHT 5
+#define SO_WIDTH 5
 
 int SO_TAXI;
 int SO_SOURCES;
@@ -56,7 +56,7 @@ int main(void)
         printTaxi(taxi);
         while(move(&taxi,MAPPA,fd[1]) == 0)
         {
-          
+
         }
         printTaxi(taxi);
         close(fd[1]);
@@ -89,6 +89,7 @@ int main(void)
 
 void cleanup()
 {
+  printMap(*MAPPA);
   close(fd[1]);
   close(fd[0]);
   deallocateAllSHM(MAPPA);

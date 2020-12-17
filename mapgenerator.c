@@ -191,7 +191,6 @@ Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, 
   placeHoles(grid, numberOfHoles);
   printf("Holes placed done, now placing sources\n");
   placeSources(grid,numberOfSources);
-  printMap(*grid);
   return grid;
 }
 

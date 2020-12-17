@@ -30,9 +30,19 @@ void setDestination(Taxi* taxi, Cell c)
   taxi->destination = c;
 }
 
+void waitOnCell(Taxi* taxi)
+{
+  struct timespec waitTime, remainingTime;
+  waitTime.tv_sec = 0;
+  waitTime.tv_nsec = taxi->position.delay;
+  nanosleep(&waitTime,&remainingTime);
+}
+
 void moveUp(Taxi* taxi, Grid* mappa, int fdWrite)
 {
   char message[500] = "";
+  waitOnCell(taxi);
+  mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
   write(fdWrite, message  ,strlen(message) * sizeof(char));
@@ -41,6 +51,8 @@ void moveUp(Taxi* taxi, Grid* mappa, int fdWrite)
 void moveDown(Taxi* taxi, Grid* mappa, int fdWrite)
 {
   char message[500] = "";
+  waitOnCell(taxi);
+  mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
   taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
   write(fdWrite, message  ,strlen(message) * sizeof(char));
@@ -49,6 +61,8 @@ void moveDown(Taxi* taxi, Grid* mappa, int fdWrite)
 void moveRight(Taxi* taxi, Grid* mappa, int fdWrite)
 {
   char message[500] = "";
+  waitOnCell(taxi);
+  mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
   write(fdWrite, message  ,strlen(message) * sizeof(char));
@@ -57,6 +71,8 @@ void moveRight(Taxi* taxi, Grid* mappa, int fdWrite)
 void moveLeft(Taxi* taxi, Grid* mappa, int fdWrite)
 {
   char message[500] = "";
+  waitOnCell(taxi);
+  mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
   write(fdWrite, message  ,strlen(message) * sizeof(char));
@@ -66,18 +82,16 @@ void moveLeft(Taxi* taxi, Grid* mappa, int fdWrite)
 
 
 int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived and 0 otherwise*/
+/*Implements Aldo's L rule*/
 {
   char message[500] = "";
-  struct timespec waitTime, remainingTime;
+
   if(taxi->position.x == taxi->destination.x && taxi->position.y == taxi->destination.y)
   {
     sprintf(message, "Il taxi con pid: %d é arrivato a destinazione\n",getpid());
     write(fdWrite, message  ,strlen(message) * sizeof(char));
     return 1;
   }
-  waitTime.tv_sec = 0;
-  waitTime.tv_nsec = taxi->position.delay;
-  nanosleep(&waitTime,&remainingTime);
 
   if(taxi->position.x - taxi->destination.x < 0)/*Downward direction*/
   {
@@ -87,10 +101,14 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
       {
         moveRight(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa, fdWrite);
       }
       else
       {
         moveLeft(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa, fdWrite);
       }
     }
     else moveDown(taxi, mappa, fdWrite);
@@ -104,10 +122,14 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
       {
         moveRight(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa, fdWrite);
       }
       else
       {
         moveLeft(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa, fdWrite);
       }
     }
     else moveUp(taxi, mappa, fdWrite);
@@ -120,10 +142,14 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
       {
         moveDown(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa, fdWrite);
       }
       else
       {
         moveUp(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa, fdWrite);
       }
     }
     else moveRight(taxi, mappa, fdWrite);
@@ -135,10 +161,14 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
       {
         moveDown(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa, fdWrite);
       }
       else
       {
         moveUp(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa, fdWrite);
       }
     }
     else moveLeft(taxi, mappa, fdWrite);
