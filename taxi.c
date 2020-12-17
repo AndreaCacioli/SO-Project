@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -32,10 +33,10 @@ void setDestination(Taxi* taxi, Cell c)
 
 void waitOnCell(Taxi* taxi)
 {
-  struct timespec waitTime, remainingTime;
+  struct timespec waitTime;
   waitTime.tv_sec = 0;
   waitTime.tv_nsec = taxi->position.delay;
-  nanosleep(&waitTime,&remainingTime);
+  nanosleep(&waitTime,NULL);
 }
 
 void moveUp(Taxi* taxi, Grid* mappa, int fdWrite)

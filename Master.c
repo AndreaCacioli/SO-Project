@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -5,6 +6,7 @@
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <unistd.h>
+#include <errno.h>
 #include <time.h>
 #include "taxi.h"
 #include "cell.h"
@@ -13,6 +15,14 @@
 #define TRUE !FALSE
 #define SO_HEIGHT 5
 #define SO_WIDTH 5
+#define TEST_ERROR if (errno) {fprintf(stderr,				\
+				       "%s:%d: PID=%5d: Error %d (%s)\n", \
+				       __FILE__,			\
+				       __LINE__,			\
+				       getpid(),			\
+				       errno,				\
+				       strerror(errno));}
+
 
 int SO_TAXI;
 int SO_SOURCES;
@@ -27,8 +37,10 @@ int SO_DURATION;
 
 void lettura_file();
 void cleanup();
+void cleanup_sigint(int signal);
 void setup();
 void initTaxi(Taxi* taxi);
+void gestione_sigint(int signal);
 
 Grid* MAPPA;
 int fd[2];
@@ -39,57 +51,84 @@ int main(void)
     char buf[1] = " ";
     pid_t pid;
     int i = 0;
+    
+    /*HANDLER SIGINT*/
+    struct sigaction sa;
+    bzero(&sa, sizeof(sa)); 
+    sa.sa_handler = gestione_sigint; 
+    sigaction(SIGINT, &sa, NULL);
+    
     system("sudo sysctl kern.sysv.shmseg=256");
     setup();
 
-    for(i = 0 ; i < SO_TAXI ; i++) /*Zona di creazione dei processi TAXI*/
+    for(i = 0 ; i < SO_TAXI ; i++) /*TAXI*/
     {
-      pid = fork();
-      if(pid == 0) /* TAXI */
-      {
-        Taxi taxi;
-        char message[50] = "";
+    	switch(pid=fork()){
+    	case -1:
+    	{
+    		TEST_ERROR;
+		exit(EXIT_FAILURE);
+    		}
+    	case 0:
+    	{
+    		Taxi taxi;
+		char message[50] = "";
 
-        close(fd[0]);
-        initTaxi(&taxi); /*We initialise the taxi structure*/
-        setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
-        printTaxi(taxi);
-        while(move(&taxi,MAPPA,fd[1]) == 0)
-        {
+		close(fd[0]);
+		initTaxi(&taxi); /*We initialize the taxi structure*/
+		setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
+		printTaxi(taxi);
+		while(move(&taxi,MAPPA,fd[1]) == 0)
+		{
 
-        }
-        printTaxi(taxi);
-        close(fd[1]);
-        exit(EXIT_SUCCESS);
-      }
+		}
+		printTaxi(taxi);
+		close(fd[1]);
+		exit(EXIT_SUCCESS);
+    	}
+    	default:
+    		break; /* Exit parent*/
+    	}
     }
 
-    if(pid != 0) /* Zona del master dopo aver creato i figli */
+    if(pid != 0) /* Working area of the parent after fork a child */
     {
-      signal(SIGALRM, cleanup); /*Installato Handler*/
+      signal(SIGALRM, cleanup); /* HANDLER SIGALARM */
       alarm(SO_DURATION);
-      while(1) /* Gestione segnale di terminazione */
+      
+      while(1)
       {
-        while( buf[0] != '\n') /*Ciclo di lettura di UN messaggio*/
+        while( buf[0] != '\n') /* cycle of reading a message */
         {
           read(fd[0], buf, 1);
           printf("%s", buf);
         }
         buf[0] = ' ';
-
       }
-      /* CLEANUP */
-      cleanup();
-
+      cleanup(); /* CLEANUP */
     }
+    
+    
   exit(EXIT_SUCCESS);
 }
 
+void gestione_sigint(int signal){
+	cleanup_sigint(signal);
+	/* printf AS-Unsafe more info on man signal-safety*/
+}
 
+void cleanup_sigint(int signal) /* mia soluzione */
+{ 
+  close(fd[1]);
+  close(fd[0]);
+  deallocateAllSHM(MAPPA);
+  semctl(semSetKey,0,IPC_RMID);
+  printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+  exit(EXIT_SUCCESS);
+}
 
 void cleanup()
 {
-  printMap(*MAPPA);
   close(fd[1]);
   close(fd[0]);
   deallocateAllSHM(MAPPA);
@@ -104,7 +143,7 @@ void lettura_file(){
   int value;
 
   if((configFile=fopen(path, "r"))==NULL) {
-	printf("Errore nell'apertura del file'");
+	TEST_ERROR
 	exit(1);
   }
   while(fscanf(configFile,"%s %d",string,&value) != EOF){
@@ -140,7 +179,7 @@ void lettura_file(){
   		SO_DURATION=value;
   	}
   	else
-  	    printf("%s non è presente come parametro nel testo\n",string);
+  	    printf("%s non è presente come parametro nel configFile\n",string);
   }
   fclose(configFile);
 }

@@ -1,5 +1,7 @@
 #ifndef __TAXI_Header__
 #define __TAXI_Header__
+#define _GNU_SOURCE 
+#include <time.h>
 #include "cell.h"
 #include "grid.h"
 #define Boolean int
