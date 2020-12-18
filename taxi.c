@@ -1,4 +1,4 @@
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -103,13 +103,13 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       {
         moveRight(taxi, mappa, fdWrite);
         moveDown(taxi, mappa, fdWrite);
-        moveDown(taxi, mappa, fdWrite);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, fdWrite);
       }
       else
       {
         moveLeft(taxi, mappa, fdWrite);
         moveDown(taxi, mappa, fdWrite);
-        moveDown(taxi, mappa, fdWrite);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, fdWrite);
       }
     }
     else moveDown(taxi, mappa, fdWrite);
@@ -124,13 +124,13 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       {
         moveRight(taxi, mappa, fdWrite);
         moveUp(taxi, mappa, fdWrite);
-        moveUp(taxi, mappa, fdWrite);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, fdWrite);
       }
       else
       {
         moveLeft(taxi, mappa, fdWrite);
         moveUp(taxi, mappa, fdWrite);
-        moveUp(taxi, mappa, fdWrite);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, fdWrite);
       }
     }
     else moveUp(taxi, mappa, fdWrite);
@@ -144,13 +144,13 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       {
         moveDown(taxi, mappa, fdWrite);
         moveRight(taxi, mappa, fdWrite);
-        moveRight(taxi, mappa, fdWrite);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, fdWrite);
       }
       else
       {
         moveUp(taxi, mappa, fdWrite);
         moveRight(taxi, mappa, fdWrite);
-        moveRight(taxi, mappa, fdWrite);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, fdWrite);
       }
     }
     else moveRight(taxi, mappa, fdWrite);
@@ -163,13 +163,13 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       {
         moveDown(taxi, mappa, fdWrite);
         moveLeft(taxi, mappa, fdWrite);
-        moveLeft(taxi, mappa, fdWrite);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, fdWrite);
       }
       else
       {
         moveUp(taxi, mappa, fdWrite);
         moveLeft(taxi, mappa, fdWrite);
-        moveLeft(taxi, mappa, fdWrite);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, fdWrite);
       }
     }
     else moveLeft(taxi, mappa, fdWrite);

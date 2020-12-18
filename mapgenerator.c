@@ -172,7 +172,7 @@ int cellToSemNum(Cell c, int width)
 int initSem (Grid* grid)
 {
   int i,j;
-  int ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT /*| SEM_R | SEM_A*/ /*SU LINUX NON VANNO*/);
+  int ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT | 0600/*Read and alter*/);
   for(i = 0; i < grid->height; i++)
   {
     for(j = 0; j < grid->width; j++)

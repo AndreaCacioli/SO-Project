@@ -1,10 +1,11 @@
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#include <sys/msg.h>
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
@@ -15,7 +16,8 @@
 #define TRUE !FALSE
 #define SO_HEIGHT 5
 #define SO_WIDTH 5
-#define TEST_ERROR if (errno) {fprintf(stderr,				\
+
+#define TEST_ERROR if (errno) {fprintf(stderr,		\
 				       "%s:%d: PID=%5d: Error %d (%s)\n", \
 				       __FILE__,			\
 				       __LINE__,			\
@@ -42,74 +44,128 @@ void setup();
 void initTaxi(Taxi* taxi);
 void gestione_sigint(int signal);
 
+typedef struct _mymsg
+{
+	long mtype;   /* Message type */
+	char mtext[500]; /* Message body */
+} Mymsg;
+
 Grid* MAPPA;
 int fd[2];
 int semSetKey = 0;
+int msgQId = 0;
+Mymsg mymsg;
 
 int main(void)
 {
     char buf[1] = " ";
     pid_t pid;
     int i = 0;
-    
-    /*HANDLER SIGINT*/
-    struct sigaction sa;
-    bzero(&sa, sizeof(sa)); 
-    sa.sa_handler = gestione_sigint; 
-    sigaction(SIGINT, &sa, NULL);
-    
+		struct mymsg msg;
+
+		mymsg.mtype = 0;
+		strcpy(mymsg.mtext,"");
+
+		msgQId = msgget(IPC_PRIVATE, IPC_CREAT | 0600);
+		if (msgQId < 0) TEST_ERROR
+
     system("sudo sysctl kern.sysv.shmseg=256");
     setup();
 
-    for(i = 0 ; i < SO_TAXI ; i++) /*TAXI*/
+    for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
-    	switch(pid=fork()){
+    	switch(pid=fork())
+			{
     	case -1:
     	{
     		TEST_ERROR;
-		exit(EXIT_FAILURE);
-    		}
+				exit(EXIT_FAILURE);
+    	}
     	case 0:
     	{
     		Taxi taxi;
-		char message[50] = "";
+				char message[50] = "";
 
-		close(fd[0]);
-		initTaxi(&taxi); /*We initialize the taxi structure*/
-		setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
-		printTaxi(taxi);
-		while(move(&taxi,MAPPA,fd[1]) == 0)
-		{
+				close(fd[0]);
+				initTaxi(&taxi); /*We initialize the taxi structure*/
+				setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
+				printTaxi(taxi);
+				while(move(&taxi,MAPPA,fd[1]) == 0)
+				{
 
+				}
+				if(msgrcv(msgQId, &msg, sizeof(msg)-sizeof(long), 0, 0) < 0)
+				{
+					TEST_ERROR
+				}
+				printf("Ho ricevuto un messaggio sulla coda: %s\n", msg.mtext);
+				printTaxi(taxi);
+				close(fd[1]);
+				exit(EXIT_SUCCESS);
+		  }
+		    	default:
+		    		break; /* Exit parent*/
+		  }
 		}
-		printTaxi(taxi);
-		close(fd[1]);
-		exit(EXIT_SUCCESS);
-    	}
-    	default:
-    		break; /* Exit parent*/
-    	}
-    }
-
-    if(pid != 0) /* Working area of the parent after fork a child */
+		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
     {
-      signal(SIGALRM, cleanup); /* HANDLER SIGALARM */
-      alarm(SO_DURATION);
-      
-      while(1)
-      {
-        while( buf[0] != '\n') /* cycle of reading a message */
-        {
-          read(fd[0], buf, 1);
-          printf("%s", buf);
-        }
-        buf[0] = ' ';
-      }
-      cleanup(); /* CLEANUP */
-    }
-    
-    
-  exit(EXIT_SUCCESS);
+    	switch(pid=fork())
+			{
+    	case -1:
+    	{
+    		TEST_ERROR;
+				exit(EXIT_FAILURE);
+    	}
+    	case 0: /*Code of the source*/
+    	{
+				printf("Hello, I'm a source [%d]\n",getpid());
+				close(fd[1]); /*Sources don't use PIPE*/
+			  close(fd[0]);
+
+				msg.mtype = getpid();
+				sprintf(msg.mtext,"Bologna\n");
+
+				printf("msg.mtext = %s\n",msg.mtext);
+
+				if(msgsnd(msgQId,&msg, sizeof(msg) - sizeof(long), 0) < 0)
+				{
+					TEST_ERROR
+				}
+
+				printf("Ho mandato un messaggio sulla coda\n");
+
+				exit(EXIT_SUCCESS);
+		  }
+		    	default:
+		    		break;
+		  }
+		}
+
+		    if(pid != 0) /* Working area of the parent after fork a child */
+		    {
+					struct sigaction sa;
+		      signal(SIGALRM, cleanup); /* HANDLER SIGALARM */
+		      alarm(SO_DURATION);
+
+					/*HANDLER SIGINT*/
+					bzero(&sa, sizeof(sa));
+					sa.sa_handler = gestione_sigint;
+					sigaction(SIGINT, &sa, NULL);
+
+		      while(1)
+		      {
+		        while( buf[0] != '\n') /* cycle of reading a message */
+		        {
+		          read(fd[0], buf, 1);
+		          printf("%s", buf);
+		        }
+		        buf[0] = ' ';
+		      }
+		      cleanup(); /* CLEANUP */
+		    }
+
+
+		  	exit(EXIT_SUCCESS);
 }
 
 void gestione_sigint(int signal){
@@ -117,8 +173,38 @@ void gestione_sigint(int signal){
 	/* printf AS-Unsafe more info on man signal-safety*/
 }
 
-void cleanup_sigint(int signal) /* mia soluzione */
-{ 
+int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort*/
+{
+ return ( (*(Cell*)b).crossings - (*(Cell*)a).crossings  );
+}
+
+void printTopCells(int nTopCells)
+{
+	int i, j;
+	Cell crox[MAPPA->width * MAPPA->height];
+	for(i = 0; i <  MAPPA->height; i++)
+	{
+		for(j = 0; j <  MAPPA->width; j++)
+		{
+			crox[ cellToSemNum(MAPPA->grid[i][j], MAPPA->width) ] = MAPPA->grid[i][j];
+		}
+	}
+	qsort(crox, MAPPA->width * MAPPA->height, sizeof(Cell), cmpfunc);
+
+	for(i = 0; i < nTopCells ; i++)
+	{
+		printf("%d:\n",i+1);
+		printCell(crox[i]);
+	}
+	printf("\n");
+}
+
+void cleanup_sigint(int signal) /* mia soluzione (Lorenzo)*/
+{
+	fflush(stdout);
+	printTopCells(SO_TOP_CELLS);
+	msgctl(msgQId, IPC_RMID, NULL);
+	printMap(*MAPPA);
   close(fd[1]);
   close(fd[0]);
   deallocateAllSHM(MAPPA);
@@ -129,6 +215,10 @@ void cleanup_sigint(int signal) /* mia soluzione */
 
 void cleanup()
 {
+	fflush(stdout);
+	printTopCells(SO_TOP_CELLS);
+	msgctl(msgQId, IPC_RMID, NULL);
+	printMap(*MAPPA);
   close(fd[1]);
   close(fd[0]);
   deallocateAllSHM(MAPPA);
