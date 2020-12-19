@@ -15,7 +15,8 @@
 #define FALSE 0
 #define TRUE !FALSE
 #define SO_HEIGHT 5
-#define SO_WIDTH 5
+#define SO_WIDTH 3
+#define MSGLEN 500
 
 #define TEST_ERROR if (errno) {fprintf(stderr,		\
 				       "%s:%d: PID=%5d: Error %d (%s)\n", \
@@ -38,38 +39,32 @@ int SO_TIMEOUT;
 int SO_DURATION;
 
 void lettura_file();
-void cleanup();
-void cleanup_sigint(int signal);
 void setup();
 void initTaxi(Taxi* taxi);
-void gestione_sigint(int signal);
-
-typedef struct _mymsg
-{
-	long mtype;   /* Message type */
-	char mtext[500]; /* Message body */
-} Mymsg;
+void cleanup(int signal);
+void signal_handler(int signal);
 
 Grid* MAPPA;
 int fd[2];
+int rcvsignal = 0;
 int semSetKey = 0;
 int msgQId = 0;
-Mymsg mymsg;
+int nbyte = 0;
+struct my_msg_ {
+	long mtype;                       /* type of message */
+	char mtext[MSGLEN];         /* user-define message */
+};
 
 int main(void)
 {
     char buf[1] = " ";
     pid_t pid;
     int i = 0;
-		struct mymsg msg;
-
-		mymsg.mtype = 0;
-		strcpy(mymsg.mtext,"");
-
-		msgQId = msgget(IPC_PRIVATE, IPC_CREAT | 0600);
+		struct my_msg_ msgQ;
+		msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600);
 		if (msgQId < 0) TEST_ERROR
-
-    system("sudo sysctl kern.sysv.shmseg=256");
+	
+    /*system("sudo sysctl kern.sysv.shmseg=256");*/
     setup();
 
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
@@ -94,11 +89,11 @@ int main(void)
 				{
 
 				}
-				if(msgrcv(msgQId, &msg, sizeof(msg)-sizeof(long), 0, 0) < 0)
+				if(msgrcv(msgQId, &msgQ,MSGLEN,0,0) < 0)
 				{
 					TEST_ERROR
 				}
-				printf("Ho ricevuto un messaggio sulla coda: %s\n", msg.mtext);
+				printf("Ho ricevuto un messaggio sulla coda: %s\n", msgQ.mtext);
 				printTaxi(taxi);
 				close(fd[1]);
 				exit(EXIT_SUCCESS);
@@ -118,16 +113,16 @@ int main(void)
     	}
     	case 0: /*Code of the source*/
     	{
-				printf("Hello, I'm a source [%d]\n",getpid());
+	
 				close(fd[1]); /*Sources don't use PIPE*/
-			  close(fd[0]);
+			  	close(fd[0]);
+				
+				msgQ.mtype = i;
+				nbyte = sprintf(msgQ.mtext,"CHILD PID %5d:Sono a BOLOGNA\n",getpid());
+				nbyte++;/* counting 0 term */
+			
 
-				msg.mtype = getpid();
-				sprintf(msg.mtext,"Bologna\n");
-
-				printf("msg.mtext = %s\n",msg.mtext);
-
-				if(msgsnd(msgQId,&msg, sizeof(msg) - sizeof(long), 0) < 0)
+				if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0)
 				{
 					TEST_ERROR
 				}
@@ -142,15 +137,16 @@ int main(void)
 		}
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
-		    {
-					struct sigaction sa;
-		      signal(SIGALRM, cleanup); /* HANDLER SIGALARM */
-		      alarm(SO_DURATION);
+		    {	
+		    			/*HANDLER SIGINT & SIGINT*/
+					struct sigaction SigHandler;
+					
+					bzero(&SigHandler, sizeof(SigHandler));
+					SigHandler.sa_handler = signal_handler;
+					sigaction(SIGINT, &SigHandler, NULL);;
+					sigaction(SIGALRM, &SigHandler, NULL);
 
-					/*HANDLER SIGINT*/
-					bzero(&sa, sizeof(sa));
-					sa.sa_handler = gestione_sigint;
-					sigaction(SIGINT, &sa, NULL);
+			  alarm(SO_DURATION);
 
 		      while(1)
 		      {
@@ -161,16 +157,22 @@ int main(void)
 		        }
 		        buf[0] = ' ';
 		      }
-		      cleanup(); /* CLEANUP */
+		      cleanup(-1); /* CLEANUP */
 		    }
 
 
 		  	exit(EXIT_SUCCESS);
 }
 
-void gestione_sigint(int signal){
-	cleanup_sigint(signal);
-	/* printf AS-Unsafe more info on man signal-safety*/
+void signal_handler(int signal){
+    switch(signal){ /* printf AS-Unsafe more info on man signal-safety*/
+        case SIGINT:
+            cleanup(signal);
+            break;
+        case SIGALRM:
+            cleanup(signal);
+            break;
+    }
 }
 
 int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort*/
@@ -191,38 +193,27 @@ void printTopCells(int nTopCells)
 	}
 	qsort(crox, MAPPA->width * MAPPA->height, sizeof(Cell), cmpfunc);
 
+	printf("****PRINTING TOPCELLS****\n",i+1);
 	for(i = 0; i < nTopCells ; i++)
 	{
-		printf("%d:\n",i+1);
+		printf("%d: ",i+1);
 		printCell(crox[i]);
+		printf("\n");
 	}
 	printf("\n");
 }
 
-void cleanup_sigint(int signal) /* mia soluzione (Lorenzo)*/
+void cleanup(int signal)
 {
-	fflush(stdout);
-	printTopCells(SO_TOP_CELLS);
-	msgctl(msgQId, IPC_RMID, NULL);
-	printMap(*MAPPA);
+  printTopCells(SO_TOP_CELLS);
+  printMap(*MAPPA);
   close(fd[1]);
   close(fd[0]);
   deallocateAllSHM(MAPPA);
-  semctl(semSetKey,0,IPC_RMID);
-  printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
-  exit(EXIT_SUCCESS);
-}
-
-void cleanup()
-{
-	fflush(stdout);
-	printTopCells(SO_TOP_CELLS);
-	msgctl(msgQId, IPC_RMID, NULL);
-	printMap(*MAPPA);
-  close(fd[1]);
-  close(fd[0]);
-  deallocateAllSHM(MAPPA);
-  semctl(semSetKey,0,IPC_RMID);
+  semctl(semSetKey,0,IPC_RMID); /* rm sem */
+  msgctl(msgQId, IPC_RMID, NULL); /* rm msg */
+  if(signal != -1) 
+  	printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
   exit(EXIT_SUCCESS);
 }
 
@@ -288,6 +279,7 @@ void setup()
   if(outcome == -1)
   {
     fprintf(stderr, "Error creating pipe\n");
+	TEST_ERROR
     exit(1);
   }
 
