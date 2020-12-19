@@ -6,6 +6,7 @@ extern Grid* generateMap(int Height, int Width, int numberOfHoles,int numberOfSo
 extern void printMap(Grid grid);
 extern void deallocateAllSHM(Grid* grid);
 extern int initSem (Grid* grid);
-extern int cellToSemNum(Cell c, int width);
+extern void handle_sig_st(int signum);
+
 
 #endif

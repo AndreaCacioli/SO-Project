@@ -20,6 +20,25 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
+void initTaxi(Taxi* taxi,Grid* MAPPA)
+{
+  int x,y;
+  srand(getpid()); /* Initializing the seed to pid*/
+  do
+  {
+    x = (rand() % MAPPA->height);
+    y = (rand() % MAPPA->width);
+  } while(!MAPPA->grid[x][y].available);
+
+  taxi->position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
+  taxi->busy = FALSE;
+  printf("\n");
+  taxi->destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
+  taxi->TTD = 0;
+  taxi->TLT = 0;
+  taxi->totalTrips = 0;
+ }
+
 void sendMsgOnPipe(char* s, int fdRead, int fdWrite)
 {
   close(fdRead);

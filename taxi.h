@@ -22,5 +22,6 @@ extern void printTaxi(Taxi t);
 extern void sendMsgOnPipe(char* s,int fdRead, int fdWrite);
 extern int move (Taxi* taxi,Grid* mappa, int fdWrite);
 extern void setDestination(Taxi* taxi, Cell c);
+extern void initTaxi(Taxi* taxi,Grid* MAPPA);
 
 #endif

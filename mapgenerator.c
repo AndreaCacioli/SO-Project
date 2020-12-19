@@ -1,6 +1,8 @@
+#define _GNU_SOURCE
 #include "cell.h"
 #include "grid.h"
 #include <stdlib.h>
+#include <signal.h>
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -9,6 +11,7 @@
 #define Boolean int
 #define FALSE 0
 #define TRUE !FALSE
+
 
 void printMap(Grid grid)
 {
@@ -121,17 +124,24 @@ Boolean canBeHole(Grid grid, Cell c)
           else if(grid.grid[i][j].available == FALSE) return FALSE;
         }
       }
-
     }
     return TRUE;
   }
 }
+void handle_sig_st(int signum){
+	exit(EXIT_FAILURE);
+}
 
 void placeHoles(Grid* grid, int numberOfHoles)
 {
-  int i,j;
-  time_t t;
-  srand((unsigned) time(&t)); /* Initializing the seed */
+  int i=0,j=0,stop=(grid->height*grid->width)*(grid->height*grid->width);
+  struct sigaction st;
+  bzero(&st, sizeof(st));
+  st.sa_handler = handle_sig_st;
+  sigaction(SIGUSR1, &st, NULL);
+  
+  /*time_t t;
+  srand((unsigned) time(&t));*/ /* Initializing the seed */
 
   while(numberOfHoles > 0)/*Number of holes will keep track of how many holes are still to be placed*/
   {
@@ -143,8 +153,16 @@ void placeHoles(Grid* grid, int numberOfHoles)
       grid->grid[i][j].available = FALSE;
       numberOfHoles--;
     }
+    stop--;
+    if(stop==0 && numberOfHoles!=0){
+    fprintf(stderr,"****ERROR LOOP IN placeHoles Restart TheGame.****\n");
+    kill(getpid(),SIGUSR1);
+    }
+    
   }
 }
+
+
 void placeSources(Grid* grid, int Sour)
 {
   int i,j;
@@ -162,11 +180,6 @@ void placeSources(Grid* grid, int Sour)
       Sour--;
     }
   }
-}
-
-int cellToSemNum(Cell c, int width)
-{
-  return c.x * width + c.y;
 }
 
 int initSem (Grid* grid)
