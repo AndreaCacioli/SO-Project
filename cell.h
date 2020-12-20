@@ -11,6 +11,7 @@ typedef struct cell
   int y;
   Boolean available;
   Boolean source;
+  Boolean taken;
   int crossings;
 
 }Cell;

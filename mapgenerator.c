@@ -3,6 +3,8 @@
 #include "grid.h"
 #include <stdlib.h>
 #include <signal.h>
+#include <unistd.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -128,20 +130,13 @@ Boolean canBeHole(Grid grid, Cell c)
     return TRUE;
   }
 }
-void handle_sig_st(int signum){
-	exit(EXIT_FAILURE);
-}
 
 void placeHoles(Grid* grid, int numberOfHoles)
 {
+  time_t t;
   int i=0,j=0,stop=(grid->height*grid->width)*(grid->height*grid->width);
-  struct sigaction st;
-  bzero(&st, sizeof(st));
-  st.sa_handler = handle_sig_st;
-  sigaction(SIGUSR1, &st, NULL);
-  
-  /*time_t t;
-  srand((unsigned) time(&t));*/ /* Initializing the seed */
+
+  srand((unsigned) time(&t)); /* Initializing the seed */
 
   while(numberOfHoles > 0)/*Number of holes will keep track of how many holes are still to be placed*/
   {
@@ -156,9 +151,9 @@ void placeHoles(Grid* grid, int numberOfHoles)
     stop--;
     if(stop==0 && numberOfHoles!=0){
     fprintf(stderr,"****ERROR LOOP IN placeHoles Restart TheGame.****\n");
-    kill(getpid(),SIGUSR1);
+    exit(EXIT_FAILURE);
     }
-    
+
   }
 }
 

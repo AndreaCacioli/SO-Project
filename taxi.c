@@ -1,7 +1,10 @@
 #define _GNU_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <math.h>
 #include <time.h>
 #include "taxi.h"
 #include "grid.h"
@@ -20,9 +23,10 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
-void initTaxi(Taxi* taxi,Grid* MAPPA)
+void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
 {
   int x,y;
+  struct sigaction SigHandler;
   srand(getpid()); /* Initializing the seed to pid*/
   do
   {
@@ -37,6 +41,11 @@ void initTaxi(Taxi* taxi,Grid* MAPPA)
   taxi->TTD = 0;
   taxi->TLT = 0;
   taxi->totalTrips = 0;
+
+  bzero(&SigHandler, sizeof(SigHandler));
+  SigHandler.sa_handler = signal_handler;
+  sigaction(SIGUSR1, &SigHandler, NULL);
+
  }
 
 void sendMsgOnPipe(char* s, int fdRead, int fdWrite)
@@ -58,58 +67,47 @@ void waitOnCell(Taxi* taxi)
   nanosleep(&waitTime,NULL);
 }
 
-void moveUp(Taxi* taxi, Grid* mappa, int fdWrite)
+void moveUp(Taxi* taxi, Grid* mappa)
 {
-  char message[500] = "";
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
-  sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
+  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
-  write(fdWrite, message  ,strlen(message) * sizeof(char));
   taxi->TTD++;
 }
-void moveDown(Taxi* taxi, Grid* mappa, int fdWrite)
+void moveDown(Taxi* taxi, Grid* mappa)
 {
-  char message[500] = "";
+
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
-  sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
+  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
   taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
-  write(fdWrite, message  ,strlen(message) * sizeof(char));
   taxi->TTD++;
 }
-void moveRight(Taxi* taxi, Grid* mappa, int fdWrite)
+void moveRight(Taxi* taxi, Grid* mappa)
 {
-  char message[500] = "";
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
-  sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
+  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
-  write(fdWrite, message  ,strlen(message) * sizeof(char));
   taxi->TTD++;
 }
-void moveLeft(Taxi* taxi, Grid* mappa, int fdWrite)
+void moveLeft(Taxi* taxi, Grid* mappa)
 {
-  char message[500] = "";
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
-  sprintf(message, "[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
+  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
-  write(fdWrite, message  ,strlen(message) * sizeof(char));
   taxi->TTD++;
 }
 
 
 
-int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived and 0 otherwise*/
+int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwise*/
 /*Implements Aldo's L rule*/
 {
-  char message[500] = "";
-
   if(taxi->position.x == taxi->destination.x && taxi->position.y == taxi->destination.y)
   {
-    sprintf(message, "Il taxi con pid: %d é arrivato a destinazione\n",getpid());
-    write(fdWrite, message  ,strlen(message) * sizeof(char));
     return 1;
   }
 
@@ -120,18 +118,18 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       /*Sotto c'é un buco!!!*/
       if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
       {
-        moveRight(taxi, mappa, fdWrite);
-        moveDown(taxi, mappa, fdWrite);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa);
+        moveDown(taxi, mappa);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa);
       }
       else
       {
-        moveLeft(taxi, mappa, fdWrite);
-        moveDown(taxi, mappa, fdWrite);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa);
+        moveDown(taxi, mappa);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa);
       }
     }
-    else moveDown(taxi, mappa, fdWrite);
+    else moveDown(taxi, mappa);
   }
 
   else if(taxi->position.x - taxi->destination.x > 0)/*Upwnward direction*/
@@ -141,18 +139,18 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
       /*Sopra c'é un buco!!!*/
       if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
       {
-        moveRight(taxi, mappa, fdWrite);
-        moveUp(taxi, mappa, fdWrite);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, fdWrite);
+        moveRight(taxi, mappa);
+        moveUp(taxi, mappa);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa);
       }
       else
       {
-        moveLeft(taxi, mappa, fdWrite);
-        moveUp(taxi, mappa, fdWrite);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, fdWrite);
+        moveLeft(taxi, mappa);
+        moveUp(taxi, mappa);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa);
       }
     }
-    else moveUp(taxi, mappa, fdWrite);
+    else moveUp(taxi, mappa);
   }
 
   else if(taxi->position.y - taxi->destination.y < 0)/*Right direction*/
@@ -161,18 +159,18 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
     {
       if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
       {
-        moveDown(taxi, mappa, fdWrite);
-        moveRight(taxi, mappa, fdWrite);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa);
+        moveRight(taxi, mappa);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa);
       }
       else
       {
-        moveUp(taxi, mappa, fdWrite);
-        moveRight(taxi, mappa, fdWrite);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa);
+        moveRight(taxi, mappa);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa);
       }
     }
-    else moveRight(taxi, mappa, fdWrite);
+    else moveRight(taxi, mappa);
   }
   else if(taxi->position.y - taxi->destination.y > 0)/*Left direction*/
   {
@@ -180,18 +178,46 @@ int move (Taxi* taxi, Grid* mappa, int fdWrite) /*Returns 1 if taxi has arrived 
     {
       if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
       {
-        moveDown(taxi, mappa, fdWrite);
-        moveLeft(taxi, mappa, fdWrite);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, fdWrite);
+        moveDown(taxi, mappa);
+        moveLeft(taxi, mappa);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa);
       }
       else
       {
-        moveUp(taxi, mappa, fdWrite);
-        moveLeft(taxi, mappa, fdWrite);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, fdWrite);
+        moveUp(taxi, mappa);
+        moveLeft(taxi, mappa);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa);
       }
     }
-    else moveLeft(taxi, mappa, fdWrite);
+    else moveLeft(taxi, mappa);
   }
   return 0;
+}
+
+double dist(int x, int y, int x1, int y1)
+{
+  return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
+}
+
+void findNearestSource(Taxi* taxi, Cell* sources, int entries)
+{
+  int i = 0;
+  Cell closest = sources[0];
+  for(i = 1; i< entries; i++)
+  {
+    if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
+    {
+      closest = sources[i];
+    }
+  }
+  setDestination(taxi, closest);
+}
+
+
+void moveTo(Taxi* t, Grid* MAPPA)
+{
+  while(move(t,MAPPA) == 0)
+  {
+    printf("[%d] Position %d %d\n",getpid(),t->position.x,t->position.y);
+  }
 }

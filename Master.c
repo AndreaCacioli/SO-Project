@@ -40,16 +40,20 @@ int SO_DURATION;
 
 void lettura_file();
 void setup();
-void initTaxi(Taxi* taxi);
 void cleanup(int signal);
 void signal_handler(int signal);
+void killAllChildren();
 
 Grid* MAPPA;
+Cell* sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
 int msgQId = 0;
 int nbyte = 0;
+
+
+
 struct my_msg_ {
 	long mtype;                       /* type of message */
 	char mtext[MSGLEN];         /* user-define message */
@@ -60,12 +64,21 @@ int main(void)
     char buf[1] = " ";
     pid_t pid;
     int i = 0;
+		sources = (Cell*)calloc(SO_SOURCES, sizeof(Cell));
 		struct my_msg_ msgQ;
+
 		msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600);
 		if (msgQId < 0) TEST_ERROR
-	
-    /*system("sudo sysctl kern.sysv.shmseg=256");*/
+
+    system("sudo sysctl kern.sysv.shmseg=256");
     setup();
+
+		for(i = 0; i < SO_SOURCES; i++)
+		{
+			printCell(sources[i]);
+			printf("\n");
+		}
+
 
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
@@ -80,21 +93,29 @@ int main(void)
     	{
     		Taxi taxi;
 				char message[50] = "";
+				int nextDestX, nextDestY;
+
 
 				close(fd[0]);
-				initTaxi(&taxi); /*We initialize the taxi structure*/
-				setDestination(&taxi,MAPPA->grid[SO_HEIGHT-1][SO_WIDTH-1]);
-				printTaxi(taxi);
-				while(move(&taxi,MAPPA,fd[1]) == 0)
-				{
 
-				}
-				if(msgrcv(msgQId, &msgQ,MSGLEN,0,0) < 0)
-				{
-					TEST_ERROR
-				}
-				printf("Ho ricevuto un messaggio sulla coda: %s\n", msgQ.mtext);
+				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
 				printTaxi(taxi);
+				while(1)
+				{
+					findNearestSource(&taxi, sources, SO_SOURCES);
+					printf("[%d]My destination is %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
+					moveTo(&taxi, MAPPA);
+					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,0) < 0)
+					{
+						TEST_ERROR
+					}
+					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
+					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
+					moveTo(&taxi, MAPPA);
+				}
+
+				printTaxi(taxi);
+
 				close(fd[1]);
 				exit(EXIT_SUCCESS);
 		  }
@@ -113,21 +134,41 @@ int main(void)
     	}
     	case 0: /*Code of the source*/
     	{
-	
+				Cell* myCell = NULL;
+				int x,y,i,j;
 				close(fd[1]); /*Sources don't use PIPE*/
-			  	close(fd[0]);
-				
-				msgQ.mtype = i;
-				nbyte = sprintf(msgQ.mtext,"CHILD PID %5d:Sono a BOLOGNA\n",getpid());
+			  close(fd[0]);
+
+				for(i = 0; i< MAPPA->height;i++)
+				{
+					for(j = 0; j < MAPPA->width;j++)
+					{
+						if (MAPPA->grid[i][j].source && !MAPPA->grid[i][j].taken)
+						{
+							MAPPA->grid[i][j].taken = TRUE;
+							myCell = &MAPPA->grid[i][j];
+						}
+					}
+				}
+
+				msgQ.mtype = cellToSemNum(*myCell, MAPPA->width)+1;
+
+			do
+			{
+				x = rand() % MAPPA->height;
+				y = rand() % MAPPA->width;
+			}while(!MAPPA->grid[x][y].available);
+
+				nbyte = sprintf(msgQ.mtext,"%d %d\n",x,y);
 				nbyte++;/* counting 0 term */
-			
+
 
 				if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0)
 				{
 					TEST_ERROR
 				}
 
-				printf("Ho mandato un messaggio sulla coda\n");
+				printf("[%d]Richiesta immessa sulla coda\n",getpid());
 
 				exit(EXIT_SUCCESS);
 		  }
@@ -137,16 +178,16 @@ int main(void)
 		}
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
-		    {	
+		    {
 		    			/*HANDLER SIGINT & SIGINT*/
 					struct sigaction SigHandler;
-					
+
 					bzero(&SigHandler, sizeof(SigHandler));
 					SigHandler.sa_handler = signal_handler;
 					sigaction(SIGINT, &SigHandler, NULL);;
 					sigaction(SIGALRM, &SigHandler, NULL);
 
-			  alarm(SO_DURATION);
+			  	alarm(SO_DURATION);
 
 		      while(1)
 		      {
@@ -157,10 +198,7 @@ int main(void)
 		        }
 		        buf[0] = ' ';
 		      }
-		      cleanup(-1); /* CLEANUP */
 		    }
-
-
 		  	exit(EXIT_SUCCESS);
 }
 
@@ -172,6 +210,10 @@ void signal_handler(int signal){
         case SIGALRM:
             cleanup(signal);
             break;
+				case SIGUSR1:
+						printf("[%d] La mia triste vita non ha alcun senso\n", getpid());
+						exit(EXIT_SUCCESS);
+						break;
     }
 }
 
@@ -193,7 +235,7 @@ void printTopCells(int nTopCells)
 	}
 	qsort(crox, MAPPA->width * MAPPA->height, sizeof(Cell), cmpfunc);
 
-	printf("****PRINTING TOPCELLS****\n",i+1);
+	printf("****PRINTING TOPCELLS****\n");
 	for(i = 0; i < nTopCells ; i++)
 	{
 		printf("%d: ",i+1);
@@ -205,6 +247,9 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
+	printf("Starting cleanup!\n");
+	killAllChildren();
+	free(sources);
   printTopCells(SO_TOP_CELLS);
   printMap(*MAPPA);
   close(fd[1]);
@@ -212,8 +257,8 @@ void cleanup(int signal)
   deallocateAllSHM(MAPPA);
   semctl(semSetKey,0,IPC_RMID); /* rm sem */
   msgctl(msgQId, IPC_RMID, NULL); /* rm msg */
-  if(signal != -1) 
-  	printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+  if(signal != -1)
+  printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
   exit(EXIT_SUCCESS);
 }
 
@@ -268,7 +313,7 @@ void lettura_file(){
 
 void setup()
 {
-  int i = 0,j = 0;
+  int i = 0,j = 0, k=0;
   int outcome = 0;
 
   lettura_file();
@@ -279,7 +324,7 @@ void setup()
   if(outcome == -1)
   {
     fprintf(stderr, "Error creating pipe\n");
-	TEST_ERROR
+		TEST_ERROR
     exit(1);
   }
 
@@ -287,28 +332,28 @@ void setup()
   {
     for(j = 0; j < MAPPA->width; j++)
     {
-      printf("%d\t", semctl(semSetKey, /* semnum= */ cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
+      /*printf("%d\t", semctl(semSetKey, /* semnum=  cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));*/
+			if(MAPPA->grid[i][j].source)
+			{
+				sources[k] = MAPPA->grid[i][j];
+				k++;
+			}
     }
     printf("\n");
   }
 }
 
-
-void initTaxi(Taxi* taxi)
+void killAllChildren()
 {
-  int x,y;
-  srand(getpid()); /* Initializing the seed to pid*/
-  do
-  {
-    x = (rand() % MAPPA->height);
-    y = (rand() % MAPPA->width);
-  } while(!MAPPA->grid[x][y].available);
-
-  taxi->position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
-  taxi->busy = FALSE;
-  printf("\n");
-  taxi->destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
-  taxi->TTD = 0;
-  taxi->TLT = 0;
-  taxi->totalTrips = 0;
+	int parent = 0, child = 0;
+	FILE* out = popen("ps -e -o ppid= -o pid=", "r");
+	while(fscanf(out, "%d%d\n",&parent, &child ) != EOF)
+	{
+		if(parent == getpid())
+		{
+			printf("killing %d...\n",child);
+			kill(child, SIGUSR1);
+		}
+	}
+	pclose(out);
 }
