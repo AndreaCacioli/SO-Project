@@ -116,7 +116,7 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
     if(!mappa->grid[taxi->position.x+1][taxi->position.y].available)
     {
       /*Sotto c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
+      if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
         moveRight(taxi, mappa);
         moveDown(taxi, mappa);
@@ -137,7 +137,7 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
     if(!mappa->grid[taxi->position.x-1][taxi->position.y].available)
     {
       /*Sopra c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0)/*É vietato andare a sinistra?*/
+      if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
         moveRight(taxi, mappa);
         moveUp(taxi, mappa);
@@ -157,7 +157,7 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y+1].available)
     {
-      if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
         moveDown(taxi, mappa);
         moveRight(taxi, mappa);
@@ -176,7 +176,7 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y-1].available)
     {
-      if(taxi->position.x - 1 < 0)/*É vietato andare a su?*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
         moveDown(taxi, mappa);
         moveLeft(taxi, mappa);
