@@ -6,8 +6,7 @@ void printCell(Cell c)
   printf("CELL (%d,%d) %c %c Cap:%d Del:%d Cross:%d\t\t",c.x,c.y,c.available?'O':'X',c.source?'S':'-', c.capacity, c.delay, c.crossings);
 }
 
-int cellToSemNum(Cell c, int width)
+int cellToSemNum(Cell c, int width) /*Causes SegFault*/
 {
   return c.x * width + c.y;
 }
-

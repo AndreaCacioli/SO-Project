@@ -202,14 +202,24 @@ double dist(int x, int y, int x1, int y1)
 void findNearestSource(Taxi* taxi, Cell* sources, int entries)
 {
   int i = 0;
-  Cell closest = sources[0];
-  for(i = 1; i< entries; i++)
+  Cell closest;
+  closest.x = -1;
+  closest.y = -1;
+  /*Init to a non-existing Cell*/
+  do
   {
+    if(taxi->position.x == sources[0].x && taxi->position.y == sources[0].y)
+    {
+      continue; /*We don't consider the cell we are on top of!*/
+      i++;
+    }
+
     if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
     {
       closest = sources[i];
     }
-  }
+    i++;
+  }while(i < entries);
   setDestination(taxi, closest);
 }
 

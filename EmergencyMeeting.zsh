@@ -1,5 +1,26 @@
-#!/bin/zsh
+#!/bin/bash
 
-for n in `ipcs -b -m | egrep ^m | awk '{ print $2; }'`; do ipcrm -m $n; done
+ME=`whoami`
+echo $ME
 
-ipcs
+IPCS_S=`ipcs -s | egrep "0x[0-9a-f]+ [0-9]+" | grep $ME | cut -f2 -d" "`
+echo $IPCS_S
+IPCS_M=`ipcs -m | egrep "0x[0-9a-f]+ [0-9]+" | grep $ME | cut -f2 -d" "`
+echo $IPCS_M
+IPCS_Q=`ipcs -q | egrep "0x[0-9a-f]+ [0-9]+" | grep $ME | cut -f2 -d" "`
+echo $IPCS_Q
+
+echo deleting SHM
+for id in $IPCS_M; do
+  ipcrm -m $id;
+done
+
+echo deleting Semaphore
+for id in $IPCS_S; do
+  ipcrm -s $id;
+done
+
+echo deleting MSGQ
+for id in $IPCS_Q; do
+  ipcrm -q $id;
+done

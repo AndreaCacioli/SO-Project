@@ -30,83 +30,57 @@ void printMap(Grid grid)
   }
 }
 
-Grid* AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, int maxDelay)
+Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, int maxDelay, Boolean verbose)
 {
   int shmID;
-  Grid* grid;
+  Grid grid;
   int i;
   int j;
   time_t t;
 
   srand((unsigned) time(&t)); /* Initializing the seed */
 
-  shmID = shmget(IPC_PRIVATE, sizeof(Grid), IPC_CREAT | 0644);
-  printf("Finding %lu bytes for grid object, found at place %d\n",sizeof(Grid),shmID);
-  if (shmID == -1)
-  {
-    fprintf(stderr,"shmget failed\n");
-    exit(1);
-  }
-  grid = (Grid*)shmat(shmID, NULL, 0);
-  grid->height = height;
-  grid->width = width;
-  shmctl(shmID, IPC_RMID, NULL); /* market disallocazione del puntatore */
 
+
+  grid.height = height;
+  grid.width = width;
+
+  shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height, IPC_CREAT | 0644);
+  if (verbose) printf("Finding %lu bytes the array of Cell*, found at place %d\n",sizeof(Cell) * height,shmID);
+  grid.grid = (Cell**)shmat(shmID, NULL, 0);
+  shmctl(shmID, IPC_RMID, NULL);  /* market di disallocazione della griglia */
+  if (verbose) printf("The grid of the grid has been allocated successfully =D\n");
 
   shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height * width, IPC_CREAT | 0644);
-  printf("Finding %lu bytes the actual grid, found at place %d\n",sizeof(Cell) * height * width,shmID);
-  grid->grid = (Cell**)shmat(shmID, NULL, 0);
+  if (verbose) printf("Finding %lu bytes the big Array, found at place %d\n",sizeof(Cell) * height * width,shmID);
+  grid.grid[0] = (Cell*)shmat(shmID, NULL, 0);
   shmctl(shmID, IPC_RMID, NULL);  /* market di disallocazione della griglia */
-  printf("The grid of the grid has been allocated successfully =D\n");
+  if (verbose) printf("The grid of the grid has been allocated successfully =D\nIndexing Now!\n");
 
-  /* Allocating each row */
-  for(i=0; i < height; i++)
+  for(i = 0; i < height; i++)
   {
-    printf("Allocating #%d row\n",i);
-    shmID = shmget(IPC_PRIVATE, sizeof(Cell) * width , IPC_CREAT | 0644);
-    printf("Finding %lu bytes the #%d row, found at place %d\n",sizeof(Cell) * width,i,shmID);
-    if (shmID == -1)
-    {
-      fprintf(stderr,"shmget failed\n");
-      exit(1);
-    }
-    grid->grid[i] = (Cell*)shmat(shmID, NULL, 0);
-    shmctl(shmID, IPC_RMID, NULL); /* market di disallocazione di ogni riga*/
-    printf("#%d row attatched\n",i);
-    if (grid->grid[i] == NULL)
-    {
-      fprintf(stderr,"shmat failed\n");
-      exit(1);
-    }
-    for(j = 0; j<width;j++)
-    {
-      shmID = shmget(IPC_PRIVATE, sizeof(Cell), IPC_CREAT | 0644);
-      printf("Finding %lu bytes for cell at (%d,%d), found at place %d\n",sizeof(Cell),i,j,shmID);
-      if (shmID == -1)
-      {
-        fprintf(stderr,"shmget failed\n");
-        exit(1);
-      }
-      grid->grid[i][j] = *((Cell*)shmat(shmID, NULL, 0));
-      if (grid->grid[i] == NULL)
-      {
-        fprintf(stderr,"shmat failed\n");
-        exit(1);
-      }
-      grid->grid[i][j].x = i;
-      grid->grid[i][j].y = j;
-      grid->grid[i][j].available = TRUE;
-      grid->grid[i][j].source = FALSE;
-      grid->grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
-      grid->grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
-      grid->grid[i][j].crossings = 0;
+    grid.grid[i] = *grid.grid + (i * width); /*Parte cruciale*/
+  }
 
-      printf("Allocated (%d,%d) cell:\n",i,j);
-      printCell(grid->grid[i][j]);
-      printf("\n");
-      shmctl(shmID, IPC_RMID, NULL); /* market di disallocazione di ogni colonna*/
+  for(i = 0; i < height; i++)
+  {
+    for(j = 0; j < width;j++)
+    {
+
+      grid.grid[i][j].x = i;
+      grid.grid[i][j].y = j;
+      grid.grid[i][j].available = TRUE;
+      grid.grid[i][j].source = FALSE;
+      grid.grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
+      grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
+      grid.grid[i][j].crossings = 0;
+
+      if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
+      printCell(grid.grid[i][j]);
+      if (verbose) printf("\n");
     }
   }
+  if (verbose) printf("Done Allocating!\n");
   return grid;
 }
 
@@ -138,7 +112,7 @@ void placeHoles(Grid* grid, int numberOfHoles)
 
   srand((unsigned) time(&t)); /* Initializing the seed */
 
-  while(numberOfHoles > 0)/*Number of holes will keep track of how many holes are still to be placed*/
+  while(numberOfHoles > 0 && stop > 0)/*Number of holes will keep track of how many holes are still to be placed*/
   {
     i = rand() % grid->height;
     j = rand() % grid->width;
@@ -149,11 +123,11 @@ void placeHoles(Grid* grid, int numberOfHoles)
       numberOfHoles--;
     }
     stop--;
-    if(stop==0 && numberOfHoles!=0){
+  }
+  if(stop==0 && numberOfHoles!=0)
+  {
     fprintf(stderr,"****ERROR LOOP IN placeHoles Restart TheGame.****\n");
     exit(EXIT_FAILURE);
-    }
-
   }
 }
 
@@ -193,22 +167,10 @@ int initSem (Grid* grid)
 
 Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, int minCap, int maxCap, int minDelay, int maxDelay)
 {
-  Grid* grid;
-  grid = AllocateMap(height,width, minCap, maxCap, minDelay, maxDelay);
-  printf("The map has been Allocated\n Starting to place holes!\n");
+  Grid* grid = malloc(sizeof(Grid));
+  *grid = AllocateMap(height,width, minCap, maxCap, minDelay, maxDelay, FALSE);
   placeHoles(grid, numberOfHoles);
-  printf("Holes placed done, now placing sources\n");
   placeSources(grid,numberOfSources);
+  printMap(*grid);
   return grid;
-}
-
-void deallocateAllSHM(Grid* grid)
-{
-  size_t i,j;
-  for (i = 0; i < grid->height; i++)
-  {
-    shmdt(grid->grid[i]);
-  }
-  shmdt(grid->grid);
-  shmdt(grid);
 }
