@@ -74,9 +74,10 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       grid.grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
       grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
       grid.grid[i][j].crossings = 0;
+      grid.grid[i][j].taken = FALSE;
 
       if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
-      printCell(grid.grid[i][j]);
+      if (verbose) printCell(grid.grid[i][j]);
       if (verbose) printf("\n");
     }
   }

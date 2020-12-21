@@ -208,13 +208,12 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
   /*Init to a non-existing Cell*/
   do
   {
-    if(taxi->position.x == sources[0].x && taxi->position.y == sources[0].y)
+    if(taxi->position.x == sources[i].x && taxi->position.y == sources[i].y)
     {
       continue; /*We don't consider the cell we are on top of!*/
       i++;
     }
-
-    if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
+    else if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
     {
       closest = sources[i];
     }
@@ -226,8 +225,6 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
 
 void moveTo(Taxi* t, Grid* MAPPA)
 {
-  while(move(t,MAPPA) == 0)
-  {
-    printf("[%d] Position %d %d\n",getpid(),t->position.x,t->position.y);
-  }
+  while(move(t,MAPPA) == 0);
+
 }

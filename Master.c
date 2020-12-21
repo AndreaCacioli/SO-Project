@@ -14,7 +14,7 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 5
+#define SO_HEIGHT 10
 #define SO_WIDTH 3
 #define MSGLEN 500
 
@@ -133,8 +133,10 @@ int main(void)
 				close(fd[1]); /*Sources don't use PIPE*/
 			  close(fd[0]);
 
+				printf("[%d S]Taking Place...\n",getpid());
 				sourceTakePlace(myCell);
-
+				printf("[%d S]Found Place at (%d,%d)\n",getpid(), myCell->x,myCell->y);
+				
 				while(i<200)
 				{
 						sourceSendMessage(myCell);
@@ -345,7 +347,7 @@ void killAllChildren()
 	pclose(out);
 }
 
-void sourceTakePlace(Cell* myCell)
+void sourceTakePlace(Cell* myCell) /*Sources actually never find a place!*/
 {
 	int i,j;
 
@@ -357,9 +359,12 @@ void sourceTakePlace(Cell* myCell)
 			{
 				MAPPA->grid[i][j].taken = TRUE;
 				myCell = &MAPPA->grid[i][j];
+				return;
 			}
 		}
 	}
+	printf("[%d S]Haven't found a cell for me!\n",getpid());
+	/*This line should never be executed!!!*/
 }
 
 void sourceSendMessage(Cell* myCell)
