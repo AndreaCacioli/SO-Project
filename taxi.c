@@ -196,6 +196,7 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
 
 double dist(int x, int y, int x1, int y1)
 {
+
   return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
 }
 
@@ -203,8 +204,8 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
 {
   int i = 0;
   Cell closest;
-  closest.x = -1;
-  closest.y = -1;
+  closest.x = -1000;
+  closest.y = -1000;
   /*Init to a non-existing Cell*/
   do
   {
@@ -215,7 +216,10 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
     }
     else if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
     {
-      closest = sources[i];
+      /*printf("Taxi(%d,%d)\n",taxi->position.x, taxi->position.y);
+      printf("Sorgente(%d,%d) i=%d\n",sources[i].x, sources[i].y,i);*/
+      closest.x = sources[i].x;
+      closest.y = sources[i].y;
     }
     i++;
   }while(i < entries);

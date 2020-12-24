@@ -87,13 +87,12 @@ int main(void)
     		Taxi taxi;
 				char message[50] = "";
 				int nextDestX, nextDestY;
-
-
 				close(fd[0]);
 
 				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
+
 				while(1)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
@@ -105,10 +104,9 @@ int main(void)
 					}
 					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
 					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
+					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
 					moveTo(&taxi, MAPPA);
 				}
-
-				printTaxi(taxi);
 
 				close(fd[1]);
 				exit(EXIT_SUCCESS);
@@ -117,7 +115,7 @@ int main(void)
 		    		break; /* Exit parent*/
 		  }
 		}
-		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
+	for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
     {
     	switch(pid=fork())
 			{
@@ -128,21 +126,21 @@ int main(void)
     	}
     	case 0: /*Code of the source*/
     	{
-				Cell* myCell = NULL;
+				Cell* myCell = &sources[i];
 				int i=0;
 				close(fd[1]); /*Sources don't use PIPE*/
-			  close(fd[0]);
+			    close(fd[0]);
 
 				printf("[%d S]Taking Place...\n",getpid());
 				sourceTakePlace(myCell);
 				printf("[%d S]Found Place at (%d,%d)\n",getpid(), myCell->x,myCell->y);
-				
-				while(i<200)
+				while(i<2000)
 				{
 						sourceSendMessage(myCell);
 						i++;
 						sleep(1);
 				}
+
 				exit(EXIT_SUCCESS);
 		  }
 
@@ -187,7 +185,7 @@ void setup()
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
 
-  MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
+   MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
 	/*Qua la mappa é Accessibile!!!*/
 
   semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
@@ -324,7 +322,7 @@ void lettura_file(){
   		SO_DURATION=value;
   	}
   	else
-  	    printf("%s non è presente come parametro nel configFile\n",string);
+  	    printf("%s it's not a parameter inside configFile\n",string);
   }
   fclose(configFile);
 }
@@ -372,8 +370,9 @@ void sourceSendMessage(Cell* myCell)
 	int x = 0, y = 0;
 
 	msgQ.mtype = cellToSemNum(*myCell, MAPPA->width)+1;
+	srand(getpid());
 	do
-	{
+	{	
 		x = rand() % MAPPA->height;
 		y = rand() % MAPPA->width;
 	}while(!MAPPA->grid[x][y].available);
@@ -387,5 +386,5 @@ void sourceSendMessage(Cell* myCell)
 		TEST_ERROR
 	}
 
-	printf("[%d]Richiesta immessa sulla coda\n",getpid());
+	printf("[%d S]Richiesta immessa sulla coda\n",getpid());
 }

@@ -40,8 +40,6 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
 
   srand((unsigned) time(&t)); /* Initializing the seed */
 
-
-
   grid.height = height;
   grid.width = width;
 
