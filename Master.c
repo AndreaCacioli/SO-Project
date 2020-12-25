@@ -55,8 +55,6 @@ int msgQId = 0;
 int nbyte = 0;
 struct my_msg_ msgQ;
 
-
-
 struct my_msg_ {
 	long mtype;                       /* type of message */
 	char mtext[MSGLEN];         /* user-define message */
@@ -97,7 +95,7 @@ int main(void)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]My destination is %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
-					moveTo(&taxi, MAPPA);
+					moveTo(&taxi, MAPPA,semSetKey);
 					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 					{
 						continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
@@ -105,7 +103,7 @@ int main(void)
 					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
 					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
 					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
-					moveTo(&taxi, MAPPA);
+					moveTo(&taxi, MAPPA,semSetKey);
 				}
 
 				close(fd[1]);
@@ -153,10 +151,9 @@ int main(void)
 		    {
 		    			/*HANDLER SIGINT & SIGINT*/
 					struct sigaction SigHandler;
-
 					bzero(&SigHandler, sizeof(SigHandler));
 					SigHandler.sa_handler = signal_handler;
-					sigaction(SIGINT, &SigHandler, NULL);;
+					sigaction(SIGINT, &SigHandler, NULL);
 					sigaction(SIGALRM, &SigHandler, NULL);
 
 			  	alarm(SO_DURATION);
@@ -221,10 +218,10 @@ void signal_handler(int signal){
         case SIGALRM:
             cleanup(signal);
             break;
-				case SIGUSR1:
-						printf("[%d] La mia triste vita non ha alcun senso\n", getpid());
-						exit(EXIT_SUCCESS);
-						break;
+		case SIGUSR1:
+			printf("Child [%d] Termination\n", getpid());
+			exit(EXIT_SUCCESS);
+			break;
     }
 }
 
@@ -368,18 +365,17 @@ void sourceTakePlace(Cell* myCell) /*Sources actually never find a place!*/
 void sourceSendMessage(Cell* myCell)
 {
 	int x = 0, y = 0;
-
 	msgQ.mtype = cellToSemNum(*myCell, MAPPA->width)+1;
 	srand(getpid());
 	do
 	{	
 		x = rand() % MAPPA->height;
 		y = rand() % MAPPA->width;
+
 	}while(!MAPPA->grid[x][y].available);
 
 	nbyte = sprintf(msgQ.mtext,"%d %d\n",x,y);
 	nbyte++;/* counting 0 term */
-
 
 	if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0)
 	{

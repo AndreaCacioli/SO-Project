@@ -4,8 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/sem.h>
 #include <math.h>
 #include <time.h>
+#include <limits.h>
 #include "taxi.h"
 #include "grid.h"
 #define FALSE 0
@@ -34,7 +36,8 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
     y = (rand() % MAPPA->width);
   } while(!MAPPA->grid[x][y].available);
 
-  taxi->position = MAPPA->grid[x][y]; /* TODO verifica che non serva un puntatore */
+  /*taxi->position = MAPPA->grid[x][y];*/ /* TODO verifica che non serva un puntatore */
+  taxi->position = MAPPA->grid[0][0];/*****************/
   taxi->busy = FALSE;
   printf("\n");
   taxi->destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
@@ -67,43 +70,50 @@ void waitOnCell(Taxi* taxi)
   nanosleep(&waitTime,NULL);
 }
 
-void moveUp(Taxi* taxi, Grid* mappa)
+void moveUp(Taxi* taxi, Grid* mappa,int semSetKey)
 {
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
+  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y-1],mappa->width), taxi, mappa);
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
   taxi->TTD++;
 }
-void moveDown(Taxi* taxi, Grid* mappa)
+void moveDown(Taxi* taxi, Grid* mappa,int semSetKey)
 {
-
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
+  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x+1][taxi->position.y],mappa->width), taxi, mappa);
   taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
   taxi->TTD++;
 }
-void moveRight(Taxi* taxi, Grid* mappa)
+void moveRight(Taxi* taxi, Grid* mappa,int semSetKey)
 {
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
+  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y+1],mappa->width), taxi, mappa);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
   taxi->TTD++;
 }
-void moveLeft(Taxi* taxi, Grid* mappa)
+void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey)
 {
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
+  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
+  dec_sem(semSetKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y-1],mappa->width), taxi, mappa);
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
   taxi->TTD++;
 }
 
 
 
-int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwise*/
+int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrived and 0 otherwise*/
 /*Implements Aldo's L rule*/
 {
   if(taxi->position.x == taxi->destination.x && taxi->position.y == taxi->destination.y)
@@ -117,19 +127,19 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
     {
       /*Sotto c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
-      {
-        moveRight(taxi, mappa);
-        moveDown(taxi, mappa);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa);
+      { 
+        moveRight(taxi, mappa, semSetKey);
+        moveDown(taxi, mappa, semSetKey);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey);
       }
       else
       {
-        moveLeft(taxi, mappa);
-        moveDown(taxi, mappa);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa);
+        moveLeft(taxi, mappa, semSetKey);
+        moveDown(taxi, mappa, semSetKey);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey);
       }
     }
-    else moveDown(taxi, mappa);
+    else moveDown(taxi, mappa, semSetKey);
   }
 
   else if(taxi->position.x - taxi->destination.x > 0)/*Upwnward direction*/
@@ -139,18 +149,18 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
       /*Sopra c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
-        moveRight(taxi, mappa);
-        moveUp(taxi, mappa);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa);
+        moveRight(taxi, mappa,semSetKey);
+        moveUp(taxi, mappa,semSetKey);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey);
       }
       else
       {
-        moveLeft(taxi, mappa);
-        moveUp(taxi, mappa);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa);
+        moveLeft(taxi, mappa, semSetKey);
+        moveUp(taxi, mappa, semSetKey);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey);
       }
     }
-    else moveUp(taxi, mappa);
+    else moveUp(taxi, mappa, semSetKey);
   }
 
   else if(taxi->position.y - taxi->destination.y < 0)/*Right direction*/
@@ -159,18 +169,18 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa);
-        moveRight(taxi, mappa);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa);
+        moveDown(taxi, mappa, semSetKey);
+        moveRight(taxi, mappa, semSetKey);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey);
       }
       else
       {
-        moveUp(taxi, mappa);
-        moveRight(taxi, mappa);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa);
+        moveUp(taxi, mappa, semSetKey);
+        moveRight(taxi, mappa, semSetKey);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey);
       }
     }
-    else moveRight(taxi, mappa);
+    else moveRight(taxi, mappa, semSetKey);
   }
   else if(taxi->position.y - taxi->destination.y > 0)/*Left direction*/
   {
@@ -178,34 +188,36 @@ int move (Taxi* taxi, Grid* mappa) /*Returns 1 if taxi has arrived and 0 otherwi
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa);
-        moveLeft(taxi, mappa);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa);
+        moveDown(taxi, mappa, semSetKey);
+        moveLeft(taxi, mappa, semSetKey);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey);
       }
       else
       {
-        moveUp(taxi, mappa);
-        moveLeft(taxi, mappa);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa);
+        moveUp(taxi, mappa, semSetKey);
+        moveLeft(taxi, mappa, semSetKey);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey);
       }
     }
-    else moveLeft(taxi, mappa);
+    else moveLeft(taxi, mappa, semSetKey);
   }
   return 0;
 }
 
 double dist(int x, int y, int x1, int y1)
 {
-
-  return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
+  if(x1<0 || y1<0) 
+      return INT_MAX;
+  else
+      return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
 }
 
 void findNearestSource(Taxi* taxi, Cell* sources, int entries)
 {
   int i = 0;
   Cell closest;
-  closest.x = -1000;
-  closest.y = -1000;
+  closest.x = INT_MIN;
+  closest.y = INT_MIN;
   /*Init to a non-existing Cell*/
   do
   {
@@ -227,8 +239,31 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
 }
 
 
-void moveTo(Taxi* t, Grid* MAPPA)
+void moveTo(Taxi* t, Grid* MAPPA,int semSetKey)
 {
-  while(move(t,MAPPA) == 0);
+  while(move(t,MAPPA,semSetKey) == 0);
+}
 
+
+void dec_sem (int sem_id, int index, Taxi* taxi, Grid* mappa)
+{
+    struct sembuf sem_op;
+    mappa->grid[taxi->position.x][taxi->position.y].capacity = mappa->grid[taxi->position.x][taxi->position.y].capacity-1;
+    if(mappa->grid[taxi->position.x][taxi->position.y].capacity<0){
+    printf("Taxi [%d] sleeping\n",getpid());
+    }
+    sem_op.sem_num  = index;
+    sem_op.sem_op   = -1;
+    sem_op.sem_flg = 0;
+    semop(sem_id, &sem_op, 1);
+
+}
+
+void inc_sem(int sem_id, int index)
+{
+    struct sembuf sem_op;
+    sem_op.sem_num  = index;
+    sem_op.sem_op   = 1;
+    sem_op.sem_flg = 0;
+    semop(sem_id, &sem_op, 1);
 }
