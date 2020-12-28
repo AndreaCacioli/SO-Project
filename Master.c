@@ -76,7 +76,6 @@ int main(void)
     setup();
 
 		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
-		/*TODO implementare handler per la fine dell'esecuzione*/
     {
     	switch(pid=fork())
 			{
@@ -95,7 +94,7 @@ int main(void)
 				myCell->taken = TRUE;
 				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
 
-				while(i<2000)
+				while(1)
 				{
 						sourceSendMessage(myCell);
 						i++;
@@ -191,7 +190,7 @@ void setup()
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
 	best_taxi = (Taxi*)calloc(SO_TAXI, sizeof(Taxi));
-	
+
 	if(sources == NULL || best_taxi == NULL) TEST_ERROR
 
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
