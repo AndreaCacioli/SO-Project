@@ -44,10 +44,12 @@ void setup();
 void cleanup(int signal);
 void signal_handler(int signal);
 void killAllChildren();
+void compare_taxi(Taxi* best_taxi);
 void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
 void sourceSendMessage(Cell* myCell);
 
 Grid* MAPPA;
+Taxi* best_taxi;
 Cell** sources;
 int fd[2];
 int rcvsignal = 0;
@@ -122,6 +124,7 @@ int main(void)
     		Taxi taxi;
 				char message[50] = "";
 				int nextDestX, nextDestY;
+				best_taxi[i]=taxi;
 				close(fd[0]);
 
 				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
@@ -187,7 +190,9 @@ void setup()
   lettura_file();
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
-	if(sources == NULL) TEST_ERROR
+	best_taxi = (Taxi*)calloc(SO_TAXI, sizeof(Taxi));
+	
+	if(sources == NULL || best_taxi == NULL) TEST_ERROR
 
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
@@ -238,6 +243,27 @@ void signal_handler(int signal){
     }
 }
 
+void compare_taxi(Taxi* best_taxi){
+	int i;
+	Taxi better_taxi;
+
+	better_taxi=best_taxi[0];
+
+	if(SO_TAXI==1){
+		printf("best TDT & TLT: \n");
+		printTaxi(best_taxi[0]);
+	}
+	else{
+		for(i=1;i<SO_TAXI;i++){
+			if(better_taxi.TLT < best_taxi[i].TLT){
+				better_taxi=best_taxi[i];
+			}
+		}
+		printf("best TLT: \n");
+		printTaxi(better_taxi);
+	}
+}
+
 int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort*/
 {
  return ( (*(Cell*)b).crossings - (*(Cell*)a).crossings );
@@ -276,6 +302,8 @@ void cleanup(int signal)
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
 	printMap(*MAPPA);
+	printf("***TAXI***!\n");
+	compare_taxi(best_taxi);
   if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
 	printf("Pipe closed!\n");
 	printf("All SHM has been detatched!\n");
