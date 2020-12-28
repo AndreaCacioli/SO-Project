@@ -57,6 +57,7 @@ int semSetKey = 0;
 int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
+char* messageFromTaxi;
 struct my_msg_ msgQ;
 
 struct my_msg_ {
@@ -160,23 +161,29 @@ int main(void)
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
+					int i = 0;
 		    			/*HANDLER SIGINT & SIGINT*/
 					struct sigaction SigHandler;
 					bzero(&SigHandler, sizeof(SigHandler));
 					SigHandler.sa_handler = signal_handler;
 					if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 					if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
-
+					if((messageFromTaxi = malloc(50)) == NULL) TEST_ERROR
 			  	alarm(SO_DURATION);
 
 		      while(1)
 		      {
+						i = 0;
+
 		        while( buf[0] != '\n') /* cycle of reading a message */
 		        {
 		          read(fd[0], buf, 1);
-		          printf("%s", buf);
+							messageFromTaxi[i] = buf[0];
+							i++;
 		        }
 		        buf[0] = ' ';
+						/*printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);*/
+						messageFromTaxi = "";
 		      }
 		    }
 		  	exit(EXIT_SUCCESS);
@@ -235,10 +242,6 @@ void signal_handler(int signal){
         case SIGALRM:
             cleanup(signal);
             break;
-			/*	case SIGUSR1:
-						printf("Child [%d] Termination\n", getpid());
-						exit(EXIT_SUCCESS);
-						break;*/
     }
 }
 
@@ -297,6 +300,7 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
+	free(messageFromTaxi);
 	killAllChildren();
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
