@@ -24,7 +24,8 @@
 				       __LINE__,			\
 				       getpid(),			\
 				       errno,				\
-				       strerror(errno));}
+				       strerror(errno)); \
+						   exit(EXIT_FAILURE);}
 
 
 int SO_TAXI;
@@ -32,7 +33,7 @@ int SO_SOURCES;
 int SO_HOLES;
 int SO_TOP_CELLS;
 int SO_CAP_MIN; /* Inclusive */
-int SO_CAP_MAX; /* Esclusive */
+int SO_CAP_MAX; /* Exclusive */
 int SO_TIMENSEC_MIN;
 int SO_TIMENSEC_MAX;
 int SO_TIMEOUT;
@@ -51,6 +52,7 @@ Cell* sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
+int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
 struct my_msg_ msgQ;
@@ -88,13 +90,15 @@ int main(void)
 				close(fd[0]);
 
 				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
+				findNearestSource(&taxi, sources, SO_SOURCES);
+
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
 				while(1)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
-					printf("[%d]My destination is %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
+					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
 					moveTo(&taxi, MAPPA,semSetKey);
 					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 					{
@@ -124,14 +128,28 @@ int main(void)
     	}
     	case 0: /*Code of the source*/
     	{
-				Cell* myCell = &sources[i];
 				int i=0;
-				close(fd[1]); /*Sources don't use PIPE*/
-			    close(fd[0]);
+				Cell* myCell = NULL;
+				struct sembuf sem_op;
+				if(close(fd[1]) == -1 || close(fd[0]) == -1)TEST_ERROR /*Sources don't use PIPE*/
+
 
 				printf("[%d S]Taking Place...\n",getpid());
+				/*SEZIONE CRITICA*/
+				sem_op.sem_num  = 0;
+				sem_op.sem_op   = -1;
+				sem_op.sem_flg = 0;
+				if(semop(semMutex, &sem_op, 1) == -1) TEST_ERROR
+
 				sourceTakePlace(myCell);
-				printf("[%d S]Found Place at (%d,%d)\n",getpid(), myCell->x,myCell->y);
+
+				sem_op.sem_num  = 0;
+				sem_op.sem_op   = 1;
+				sem_op.sem_flg = 0;
+				if(semop(semMutex, &sem_op, 1) == -1) TEST_ERROR
+				/*FINE SEZIONE CRITICA*/ /*This Works fine!*/
+				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
+
 				while(i<2000)
 				{
 						sourceSendMessage(myCell);
@@ -153,8 +171,8 @@ int main(void)
 					struct sigaction SigHandler;
 					bzero(&SigHandler, sizeof(SigHandler));
 					SigHandler.sa_handler = signal_handler;
-					sigaction(SIGINT, &SigHandler, NULL);
-					sigaction(SIGALRM, &SigHandler, NULL);
+					if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
+					if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
 
 			  	alarm(SO_DURATION);
 
@@ -178,6 +196,7 @@ void setup()
   lettura_file();
 
 	sources = (Cell*)calloc(SO_SOURCES, sizeof(Cell));
+	if(sources == NULL) TEST_ERROR
 
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
@@ -186,6 +205,9 @@ void setup()
 	/*Qua la mappa é Accessibile!!!*/
 
   semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
+	semMutex = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600/*Read and alter*/);
+	if(semMutex == -1) TEST_ERROR
+	if(semctl(semMutex, 0, SETVAL, 1) == -1) TEST_ERROR
 
   outcome = pipe(fd);
   if(outcome == -1)
@@ -234,6 +256,7 @@ void printTopCells(int nTopCells)
 {
 	int i, j;
 	Cell* crox = malloc(MAPPA->width * MAPPA->height * sizeof(Cell));
+	if (crox == NULL) TEST_ERROR
 	/*printf("Heap space for crox has been allocated!\n");*/
 	for(i = 0; i <  MAPPA->height; i++)
 	{
@@ -258,15 +281,16 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
+	printMap(*MAPPA);
 	printf("Starting cleanup!\n");
 	killAllChildren();
 	printf("All child processes killed\n");
-  close(fd[1]);
-  close(fd[0]);
+  if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
 	printf("Pipe closed!\n");
 	printf("All SHM has been detatched!\n");
-  semctl(semSetKey,0,IPC_RMID); /* rm sem */
-  msgctl(msgQId, IPC_RMID, NULL); /* rm msg */
+  if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
+	if(semctl(semMutex,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
+  if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printf("Semaphore And Q marked as deletable\n");
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
@@ -284,7 +308,6 @@ void lettura_file(){
 
   if((configFile=fopen(path, "r"))==NULL) {
 	TEST_ERROR
-	exit(1);
   }
   while(fscanf(configFile,"%s %d",string,&value) != EOF){
 
@@ -331,6 +354,7 @@ void killAllChildren()
 {
 	int parent = 0, child = 0;
 	FILE* out = popen("ps -e -o ppid= -o pid=", "r");
+	if(out == NULL) TEST_ERROR
 	while(fscanf(out, "%d%d\n",&parent, &child ) != EOF)
 	{
 		if(parent == getpid())
@@ -342,10 +366,9 @@ void killAllChildren()
 	pclose(out);
 }
 
-void sourceTakePlace(Cell* myCell) /*Sources actually never find a place!*/
+void sourceTakePlace(Cell* myCell)
 {
 	int i,j;
-
 	for(i = 0; i < MAPPA->height;i++)
 	{
 		for(j = 0; j < MAPPA->width;j++)
@@ -354,6 +377,9 @@ void sourceTakePlace(Cell* myCell) /*Sources actually never find a place!*/
 			{
 				MAPPA->grid[i][j].taken = TRUE;
 				myCell = &MAPPA->grid[i][j];
+				printf("[%d S] Found this one free!\t", getpid());
+				printCell(*myCell);
+				printf("\n");
 				return;
 			}
 		}
@@ -368,7 +394,7 @@ void sourceSendMessage(Cell* myCell)
 	msgQ.mtype = cellToSemNum(*myCell, MAPPA->width)+1;
 	srand(getpid());
 	do
-	{	
+	{
 		x = rand() % MAPPA->height;
 		y = rand() % MAPPA->width;
 
@@ -377,10 +403,7 @@ void sourceSendMessage(Cell* myCell)
 	nbyte = sprintf(msgQ.mtext,"%d %d\n",x,y);
 	nbyte++;/* counting 0 term */
 
-	if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0)
-	{
-		TEST_ERROR
-	}
+	if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0) TEST_ERROR
 
 	printf("[%d S]Richiesta immessa sulla coda\n",getpid());
 }

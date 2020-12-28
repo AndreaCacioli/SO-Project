@@ -36,11 +36,10 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
     y = (rand() % MAPPA->width);
   } while(!MAPPA->grid[x][y].available);
 
-  /*taxi->position = MAPPA->grid[x][y];*/ /* TODO verifica che non serva un puntatore */
-  taxi->position = MAPPA->grid[0][0];/*****************/
+  taxi->position = MAPPA->grid[x][y];
+  /*taxi->position = MAPPA->grid[0][0]; *****************/
   taxi->busy = FALSE;
-  printf("\n");
-  taxi->destination = MAPPA->grid[0][0]; /* TODO inizializzare destination per farlo andare alla source */
+  taxi->destination = MAPPA->grid[0][0];
   taxi->TTD = 0;
   taxi->TLT = 0;
   taxi->totalTrips = 0;
@@ -127,7 +126,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
     {
       /*Sotto c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
-      { 
+      {
         moveRight(taxi, mappa, semSetKey);
         moveDown(taxi, mappa, semSetKey);
         if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey);
@@ -206,7 +205,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
 
 double dist(int x, int y, int x1, int y1)
 {
-  if(x1<0 || y1<0) 
+  if(x1<0 || y1<0)
       return INT_MAX;
   else
       return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
@@ -248,9 +247,10 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey)
 void dec_sem (int sem_id, int index, Taxi* taxi, Grid* mappa)
 {
     struct sembuf sem_op;
-    mappa->grid[taxi->position.x][taxi->position.y].capacity = mappa->grid[taxi->position.x][taxi->position.y].capacity-1;
-    if(mappa->grid[taxi->position.x][taxi->position.y].capacity<0){
-    printf("Taxi [%d] sleeping\n",getpid());
+    /*mappa->grid[taxi->position.x][taxi->position.y].capacity = mappa->grid[taxi->position.x][taxi->position.y].capacity-1; Capacity of the cell doesn't change*/
+    if(semctl(sem_id, /*semnum=*/index, GETVAL) - 1 < 0) /*The -1 is because we are about to decrease the semaphore*/
+    {
+      printf("Taxi [%d] sleeping\n",getpid());
     }
     sem_op.sem_num  = index;
     sem_op.sem_op   = -1;
