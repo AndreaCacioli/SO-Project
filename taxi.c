@@ -75,7 +75,7 @@ void moveUp(Taxi* taxi, Grid* mappa,int semSetKey)
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y-1],mappa->width), taxi, mappa);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y],mappa->width), taxi, mappa);
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
   taxi->TTD++;
 }
@@ -211,7 +211,7 @@ double dist(int x, int y, int x1, int y1)
       return sqrt((x1 - x)*(x1 - x) + (y1 - y)*(y1 - y));
 }
 
-void findNearestSource(Taxi* taxi, Cell* sources, int entries)
+void findNearestSource(Taxi* taxi, Cell** sources, int entries)
 {
   int i = 0;
   Cell closest;
@@ -220,17 +220,17 @@ void findNearestSource(Taxi* taxi, Cell* sources, int entries)
   /*Init to a non-existing Cell*/
   do
   {
-    if(taxi->position.x == sources[i].x && taxi->position.y == sources[i].y)
+    if(taxi->position.x == sources[i]->x && taxi->position.y == sources[i]->y)
     {
-      continue; /*We don't consider the cell we are on top of!*/
       i++;
+      continue; /*We don't consider the cell we are on top of!*/
     }
-    else if(dist(taxi->position.x, taxi->position.y, sources[i].x, sources[i].y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
+    else if(dist(taxi->position.x, taxi->position.y, sources[i]->x, sources[i]->y) < dist(taxi->position.x, taxi->position.y,closest.x, closest.y))
     {
       /*printf("Taxi(%d,%d)\n",taxi->position.x, taxi->position.y);
       printf("Sorgente(%d,%d) i=%d\n",sources[i].x, sources[i].y,i);*/
-      closest.x = sources[i].x;
-      closest.y = sources[i].y;
+      closest.x = sources[i]->x;
+      closest.y = sources[i]->y;
     }
     i++;
   }while(i < entries);
@@ -247,8 +247,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey)
 void dec_sem (int sem_id, int index, Taxi* taxi, Grid* mappa)
 {
     struct sembuf sem_op;
-    /*mappa->grid[taxi->position.x][taxi->position.y].capacity = mappa->grid[taxi->position.x][taxi->position.y].capacity-1; Capacity of the cell doesn't change*/
-    if(semctl(sem_id, /*semnum=*/index, GETVAL) - 1 < 0) /*The -1 is because we are about to decrease the semaphore*/
+    if(semctl(sem_id, /*semnum=*/index, GETVAL) == 0)
     {
       printf("Taxi [%d] sleeping\n",getpid());
     }

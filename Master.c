@@ -48,7 +48,7 @@ void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header f
 void sourceSendMessage(Cell* myCell);
 
 Grid* MAPPA;
-Cell* sources;
+Cell** sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
@@ -72,6 +72,41 @@ int main(void)
 		prova.y = 1;
 
     setup();
+
+		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
+		/*TODO implementare handler per la fine dell'esecuzione*/
+    {
+    	switch(pid=fork())
+			{
+    	case -1:
+    	{
+    		TEST_ERROR;
+				exit(EXIT_FAILURE);
+    	}
+    	case 0: /*Code of the source*/
+    	{
+				Cell* myCell = sources[i];
+				int i = 0;
+				struct sembuf sem_op;
+				if(close(fd[1]) == -1 || close(fd[0]) == -1)TEST_ERROR /*Sources don't use PIPE*/
+
+				myCell->taken = TRUE;
+				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
+
+				while(i<2000)
+				{
+						sourceSendMessage(myCell);
+						i++;
+						sleep(1);
+				}
+
+				exit(EXIT_SUCCESS);
+		  }
+
+		    	default:
+		    		break;
+		  }
+		}
 
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
@@ -117,53 +152,7 @@ int main(void)
 		    		break; /* Exit parent*/
 		  }
 		}
-	for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
-    {
-    	switch(pid=fork())
-			{
-    	case -1:
-    	{
-    		TEST_ERROR;
-				exit(EXIT_FAILURE);
-    	}
-    	case 0: /*Code of the source*/
-    	{
-				int i=0;
-				Cell* myCell = NULL;
-				struct sembuf sem_op;
-				if(close(fd[1]) == -1 || close(fd[0]) == -1)TEST_ERROR /*Sources don't use PIPE*/
 
-
-				printf("[%d S]Taking Place...\n",getpid());
-				/*SEZIONE CRITICA*/
-				sem_op.sem_num  = 0;
-				sem_op.sem_op   = -1;
-				sem_op.sem_flg = 0;
-				if(semop(semMutex, &sem_op, 1) == -1) TEST_ERROR
-
-				sourceTakePlace(myCell);
-
-				sem_op.sem_num  = 0;
-				sem_op.sem_op   = 1;
-				sem_op.sem_flg = 0;
-				if(semop(semMutex, &sem_op, 1) == -1) TEST_ERROR
-				/*FINE SEZIONE CRITICA*/ /*This Works fine!*/
-				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
-
-				while(i<2000)
-				{
-						sourceSendMessage(myCell);
-						i++;
-						sleep(1);
-				}
-
-				exit(EXIT_SUCCESS);
-		  }
-
-		    	default:
-		    		break;
-		  }
-		}
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
@@ -195,7 +184,7 @@ void setup()
   int outcome = 0;
   lettura_file();
 
-	sources = (Cell*)calloc(SO_SOURCES, sizeof(Cell));
+	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
 	if(sources == NULL) TEST_ERROR
 
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
@@ -224,7 +213,7 @@ void setup()
       printf("%d\t", semctl(semSetKey, /*semnum=*/cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
 			if(MAPPA->grid[i][j].source)
 			{
-				sources[k] = MAPPA->grid[i][j];
+				sources[k] = &MAPPA->grid[i][j];
 				k++;
 			}
     }
@@ -240,10 +229,10 @@ void signal_handler(int signal){
         case SIGALRM:
             cleanup(signal);
             break;
-		case SIGUSR1:
-			printf("Child [%d] Termination\n", getpid());
-			exit(EXIT_SUCCESS);
-			break;
+			/*	case SIGUSR1:
+						printf("Child [%d] Termination\n", getpid());
+						exit(EXIT_SUCCESS);
+						break;*/
     }
 }
 
@@ -281,10 +270,10 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
-	printMap(*MAPPA);
-	printf("Starting cleanup!\n");
 	killAllChildren();
 	printf("All child processes killed\n");
+	printf("Starting cleanup!\n");
+	printMap(*MAPPA);
   if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
 	printf("Pipe closed!\n");
 	printf("All SHM has been detatched!\n");
@@ -360,32 +349,10 @@ void killAllChildren()
 		if(parent == getpid())
 		{
 			printf("killing %d...\n",child);
-			kill(child, SIGUSR1);
+			kill(child, SIGTERM);
 		}
 	}
 	pclose(out);
-}
-
-void sourceTakePlace(Cell* myCell)
-{
-	int i,j;
-	for(i = 0; i < MAPPA->height;i++)
-	{
-		for(j = 0; j < MAPPA->width;j++)
-		{
-			if (MAPPA->grid[i][j].source && !MAPPA->grid[i][j].taken)
-			{
-				MAPPA->grid[i][j].taken = TRUE;
-				myCell = &MAPPA->grid[i][j];
-				printf("[%d S] Found this one free!\t", getpid());
-				printCell(*myCell);
-				printf("\n");
-				return;
-			}
-		}
-	}
-	printf("[%d S]Haven't found a cell for me!\n",getpid());
-	/*This line should never be executed!!!*/
 }
 
 void sourceSendMessage(Cell* myCell)
