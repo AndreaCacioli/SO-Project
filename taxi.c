@@ -20,7 +20,7 @@ void printTaxi(Taxi t)
   printf("|Destination:  (%d,%d)    |\n",t.destination.x,t.destination.y);
   printf("|Busy:         %s     |\n", t.busy ? "TRUE" : "FALSE");
   printf("|TTD:          %d       |\n",t.TTD);
-  printf("|TLT:          %d       |\n",t.TLT);
+  printf("|TLT:          %f       |\n",t.TLT);
   printf("|Total Trips:  %d       |\n",t.totalTrips);
   printf("-------------------------\n");
 }
@@ -75,7 +75,7 @@ void moveUp(Taxi* taxi, Grid* mappa,int semSetKey)
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y],mappa->width), taxi, mappa);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y],mappa->width));
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
   taxi->TTD++;
 }
@@ -85,7 +85,7 @@ void moveDown(Taxi* taxi, Grid* mappa,int semSetKey)
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x+1][taxi->position.y],mappa->width), taxi, mappa);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x+1][taxi->position.y],mappa->width));
   taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
   taxi->TTD++;
 }
@@ -95,7 +95,7 @@ void moveRight(Taxi* taxi, Grid* mappa,int semSetKey)
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y+1],mappa->width), taxi, mappa);
+  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y+1],mappa->width));
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
   taxi->TTD++;
 }
@@ -105,7 +105,7 @@ void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey)
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
-  dec_sem(semSetKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y-1],mappa->width), taxi, mappa);
+  dec_sem(semSetKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y-1],mappa->width));
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
   taxi->TTD++;
 }
@@ -238,13 +238,29 @@ void findNearestSource(Taxi* taxi, Cell** sources, int entries)
 }
 
 
-void moveTo(Taxi* t, Grid* MAPPA,int semSetKey)
+void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int Busy)
 {
-  while(move(t,MAPPA,semSetKey) == 0);
+  clock_t x_startTime,x_endTime;
+  float seconds=0;
+
+  if(Busy==TRUE){ /* counting TLT */
+    x_startTime = clock(); 
+    while(move(t,MAPPA,semSetKey) == 0);
+    x_endTime = clock(); 
+
+    seconds = (float)(x_endTime - x_startTime) / CLOCKS_PER_SEC;
+
+    if(seconds>t->TLT){
+        t->TLT=seconds;
+    }
+  }
+  else 
+      while(move(t,MAPPA,semSetKey) == 0);
+
 }
 
 
-void dec_sem (int sem_id, int index, Taxi* taxi, Grid* mappa)
+void dec_sem (int sem_id, int index)
 {
     struct sembuf sem_op;
     if(semctl(sem_id, /*semnum=*/index, GETVAL) == 0)

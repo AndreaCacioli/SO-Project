@@ -134,7 +134,7 @@ int main(void)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
-					moveTo(&taxi, MAPPA,semSetKey);
+					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
 					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 					{
 						continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
@@ -142,7 +142,9 @@ int main(void)
 					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
 					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
 					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
-					moveTo(&taxi, MAPPA,semSetKey);
+					taxi.busy=TRUE;
+					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
+					taxi.busy=FALSE;
 				}
 
 				close(fd[1]);
