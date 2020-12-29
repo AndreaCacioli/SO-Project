@@ -44,19 +44,19 @@ void setup();
 void cleanup(int signal);
 void signal_handler(int signal);
 void killAllChildren();
-void compare_taxi(Taxi* best_taxi);
 void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
 void sourceSendMessage(Cell* myCell);
 
 Grid* MAPPA;
-Taxi* best_taxi;
 Cell** sources;
+pid_t pid_taxi[5];
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
 int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
+int closing = 0;
 char* messageFromTaxi;
 struct my_msg_ msgQ;
 
@@ -112,7 +112,7 @@ int main(void)
 
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
-    	switch(pid=fork())
+    	switch(pid_taxi[i]=pid=fork())
 			{
     	case -1:
     	{
@@ -124,7 +124,6 @@ int main(void)
     		Taxi taxi;
 				char message[50] = "";
 				int nextDestX, nextDestY;
-				best_taxi[i]=taxi;
 				close(fd[0]);
 
 				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
@@ -133,7 +132,7 @@ int main(void)
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
-				while(1)
+				while(1 && closing!=1)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
@@ -149,11 +148,22 @@ int main(void)
 					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
 					taxi.busy=FALSE;
 				}
-
+				sprintf(message,"---------Taxi--%d------\n \
+							 |Position:     (%d,%d)    |\n \
+							 |Destination:  (%d,%d)    |\n \
+							 |Busy:         %s     |\n \
+							 |TTD:          %d       |\n \
+							 |TLT:          %f       |\n \
+							 |Total Trips:  %d       |\n \
+							 -------------------------\n",getpid(),taxi.position.x,taxi.position.y,\
+							taxi.destination.x,taxi.destination.y,\
+							taxi.busy ? "TRUE" : "FALSE", taxi.TTD, taxi.TLT, taxi.totalTrips);
+				sendMsgOnPipe(message,fd[0],fd[1]);
+				
 				close(fd[1]);
 				exit(EXIT_SUCCESS);
-		  }
-		    	default:
+			}
+				default:
 		    		break; /* Exit parent*/
 		  }
 		}
@@ -182,7 +192,7 @@ int main(void)
 							i++;
 		        }
 		        buf[0] = ' ';
-						/*printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);*/
+						printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
 						messageFromTaxi = "";
 		      }
 		    }
@@ -196,9 +206,8 @@ void setup()
   lettura_file();
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
-	best_taxi = (Taxi*)calloc(SO_TAXI, sizeof(Taxi));
-
-	if(sources == NULL || best_taxi == NULL) TEST_ERROR
+	
+	if(sources == NULL) TEST_ERROR
 
 	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
@@ -242,28 +251,10 @@ void signal_handler(int signal){
         case SIGALRM:
             cleanup(signal);
             break;
+		case SIGUSR1:
+            closing=1;
+            break;
     }
-}
-
-void compare_taxi(Taxi* best_taxi){
-	int i;
-	Taxi better_taxi;
-
-	better_taxi=best_taxi[0];
-
-	if(SO_TAXI==1){
-		printf("best TDT & TLT: \n");
-		printTaxi(best_taxi[0]);
-	}
-	else{
-		for(i=1;i<SO_TAXI;i++){
-			if(better_taxi.TLT < best_taxi[i].TLT){
-				better_taxi=best_taxi[i];
-			}
-		}
-		printf("best TLT: \n");
-		printTaxi(better_taxi);
-	}
 }
 
 int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort*/
@@ -305,8 +296,6 @@ void cleanup(int signal)
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
 	printMap(*MAPPA);
-	printf("***TAXI***!\n");
-	compare_taxi(best_taxi);
   if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
 	printf("Pipe closed!\n");
 	printf("All SHM has been detatched!\n");
@@ -374,15 +363,19 @@ void lettura_file(){
 
 void killAllChildren()
 {
-	int parent = 0, child = 0;
+	int parent = 0, child = 0, i = 0;
 	FILE* out = popen("ps -e -o ppid= -o pid=", "r");
 	if(out == NULL) TEST_ERROR
 	while(fscanf(out, "%d%d\n",&parent, &child ) != EOF)
 	{
-		if(parent == getpid())
+		if(parent == getpid() && pid_taxi[0]!=getpid())
 		{
 			printf("killing %d...\n",child);
 			kill(child, SIGTERM);
+		}
+		else if(parent == getpid() && pid_taxi[0]==getpid()){
+			kill(child, SIGUSR1);
+			i++;
 		}
 	}
 	pclose(out);
