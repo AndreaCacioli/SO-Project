@@ -25,6 +25,9 @@
 				       getpid(),			\
 				       errno,				\
 				       strerror(errno)); \
+							 semctl(semSetKey,0,IPC_RMID); \
+						 	 semctl(semMutex,0,IPC_RMID); \
+						   msgctl(msgQId, IPC_RMID, NULL); \
 						   exit(EXIT_FAILURE);}
 
 
@@ -75,7 +78,6 @@ int main(void)
 		prova.y = 1;
 
     setup();
-
 		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
     {
     	switch(pid=fork())
