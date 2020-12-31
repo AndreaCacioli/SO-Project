@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 #include "taxi.h"
 #include "cell.h"
 #include "mapgenerator.h"
@@ -61,6 +63,7 @@ int msgQId = 0;
 int nbyte = 0;
 int closing = 0;
 char* messageFromTaxi;
+char buf[1] = " ";
 struct my_msg_ msgQ;
 
 struct my_msg_ {
@@ -70,7 +73,6 @@ struct my_msg_ {
 
 int main(void)
 {
-    char buf[1] = " ";
     pid_t pid;
     int i = 0;
 		Cell prova;
@@ -126,6 +128,7 @@ int main(void)
     		Taxi taxi;
 				char message[50] = "";
 				int nextDestX, nextDestY;
+
 				close(fd[0]);
 
 				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
@@ -134,7 +137,7 @@ int main(void)
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
-				while(1 && closing!=1)
+				while(closing!=1)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
@@ -150,7 +153,7 @@ int main(void)
 					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
 					taxi.busy=FALSE;
 				}
-				sprintf(message,"---------Taxi--%d------\n \
+				/*sprintf(message,"---------Taxi--%d------\n \
 							 |Position:     (%d,%d)    |\n \
 							 |Destination:  (%d,%d)    |\n \
 							 |Busy:         %s     |\n \
@@ -159,11 +162,8 @@ int main(void)
 							 |Total Trips:  %d       |\n \
 							 -------------------------\n",getpid(),taxi.position.x,taxi.position.y,\
 							taxi.destination.x,taxi.destination.y,\
-							taxi.busy ? "TRUE" : "FALSE", taxi.TTD, taxi.TLT, taxi.totalTrips);
-				sendMsgOnPipe(message,fd[0],fd[1]);
-
-				close(fd[1]);
-				exit(EXIT_SUCCESS);
+							taxi.busy ? "TRUE" : "FALSE", taxi.TTD, taxi.TLT, taxi.totalTrips);*/
+				taxiDie(taxi, fd[0], fd[1]);
 			}
 				default:
 		    		break; /* Exit parent*/
@@ -310,6 +310,22 @@ void cleanup(int signal)
 	printf("Array of sources freed!\n");
   if(signal != -1)
   printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+
+	while(buf[0] != EOF)
+	{
+		int i = 0;
+
+		while( buf[0] != '\n') /* cycle of reading a message */
+		{
+			read(fd[0], buf, 1); /*For some reason this reads SPACE*/
+			printf("%d\t",buf[0]);
+			messageFromTaxi[i] = buf[0];
+			i++;
+		}
+		buf[0] = ' ';
+		printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
+		messageFromTaxi = "";
+	}
   exit(EXIT_SUCCESS);
 }
 

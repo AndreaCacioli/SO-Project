@@ -52,7 +52,6 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
 
 void sendMsgOnPipe(char* s, int fdRead, int fdWrite)
 {
-  close(fdRead);
   write(fdWrite, s ,strlen(s) * sizeof(char));
 }
 
@@ -244,9 +243,9 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int Busy)
   float seconds=0;
 
   if(Busy==TRUE){ /* counting TLT */
-    x_startTime = clock(); 
+    x_startTime = clock();
     while(move(t,MAPPA,semSetKey) == 0);
-    x_endTime = clock(); 
+    x_endTime = clock();
 
     seconds = (float)(x_endTime - x_startTime) / CLOCKS_PER_SEC;
 
@@ -254,7 +253,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int Busy)
         t->TLT=seconds;
     }
   }
-  else 
+  else
       while(move(t,MAPPA,semSetKey) == 0);
 
 }
@@ -281,4 +280,12 @@ void inc_sem(int sem_id, int index)
     sem_op.sem_op   = 1;
     sem_op.sem_flg = 0;
     semop(sem_id, &sem_op, 1);
+}
+void taxiDie(Taxi taxi, int fdRead, int fdWrite)
+{
+  char* message = malloc(500);
+  sprintf(message, "%d %d %d %d %d %d %f %d\n", taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
+  sendMsgOnPipe(message,fdRead,fdWrite);
+  close(fdWrite);
+  exit(EXIT_SUCCESS);
 }

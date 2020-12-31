@@ -26,6 +26,7 @@ extern void findNearestSource(Taxi* taxi, Cell** sources, int entries);
 extern void moveTo(Taxi* taxi, Grid* MAPPA,int semSetKey, int Busy);
 extern void dec_sem (int sem_id, int index);
 extern void inc_sem(int sem_id, int index);
+extern void taxiDie(Taxi t, int fdRead, int fdWrite);
 
 
 #endif
