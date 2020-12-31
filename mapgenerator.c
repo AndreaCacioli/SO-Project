@@ -69,8 +69,10 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       grid.grid[i][j].y = j;
       grid.grid[i][j].available = TRUE;
       grid.grid[i][j].source = FALSE;
-      grid.grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
-      grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
+      if(maxCap == minCap) grid.grid[i][j].capacity = maxCap;
+      else grid.grid[i][j].capacity = (rand() % (maxCap-minCap)) + minCap;
+      if(maxDelay == minDelay) grid.grid[i][j].delay = maxDelay;
+      else grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
       grid.grid[i][j].crossings = 0;
       grid.grid[i][j].taken = FALSE;
 
