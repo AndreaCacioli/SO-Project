@@ -159,7 +159,7 @@ int main(void)
 							taxi.destination.x,taxi.destination.y,\
 							taxi.busy ? "TRUE" : "FALSE", taxi.TTD, taxi.TLT, taxi.totalTrips);
 				sendMsgOnPipe(message,fd[0],fd[1]);
-				
+
 				close(fd[1]);
 				exit(EXIT_SUCCESS);
 			}
@@ -206,10 +206,10 @@ void setup()
   lettura_file();
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
-	
+
 	if(sources == NULL) TEST_ERROR
 
-	msgQId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
+	msgQId = msgget(ftok("./Input.config", 1), IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
 
    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
