@@ -46,5 +46,5 @@ int main(void)
   if(msgsnd(msgQId, &msgQ, strlen(msgQ.mtext), 0) < 0) TEST_ERROR
   free(x);
   free(y);
-
+	return 0;
 }

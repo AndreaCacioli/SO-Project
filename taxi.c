@@ -25,7 +25,7 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
-void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
+void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int))
 {
   int x,y;
   struct sigaction SigHandler;
@@ -47,10 +47,13 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int) )
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;
   sigaction(SIGUSR1, &SigHandler, NULL);
+  SigHandler.sa_handler = die;
+  sigaction(SIGINT, &SigHandler, NULL);
 
  }
 
-void sendMsgOnPipe(char* s, int fdRead, int fdWrite)
+
+void sendMsgOnPipe(char* s, int fdRead, int fdWrite) /*TODO REMOVE fdread from sendMsgOnPipe*/
 {
   write(fdWrite, s ,strlen(s) * sizeof(char));
 }
@@ -284,8 +287,10 @@ void inc_sem(int sem_id, int index)
 void taxiDie(Taxi taxi, int fdRead, int fdWrite)
 {
   char* message = malloc(500);
+  close(fdRead);
   sprintf(message, "%d %d %d %d %d %d %f %d\n", taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdRead,fdWrite);
+  free(message);
   close(fdWrite);
   exit(EXIT_SUCCESS);
 }

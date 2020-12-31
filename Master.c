@@ -51,19 +51,22 @@ void signal_handler(int signal);
 void killAllChildren();
 void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
 void sourceSendMessage(Cell* myCell);
+void dieHandler(int signal);
 
 Grid* MAPPA;
 Cell** sources;
-pid_t pid_taxi[5];
+pid_t* pid_taxi;
+pid_t* pid_sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
 int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
-int closing = 0;
+Boolean closing = FALSE;
 char* messageFromTaxi;
-char buf[1] = " ";
+char buf = ' ';
+Taxi taxi;
 struct my_msg_ msgQ;
 
 struct my_msg_ {
@@ -78,11 +81,11 @@ int main(void)
 		Cell prova;
 		prova.x = 0;
 		prova.y = 1;
-
+		printf("[%d M] STARTING...\n",getpid());
     setup();
-		for(i = 0 ; i < SO_SOURCES ; i++)                     /*SOURCES*/
+		for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
-    	switch(pid=fork())
+    	switch(pid_sources[i]=pid=fork())
 			{
     	case -1:
     	{
@@ -125,19 +128,20 @@ int main(void)
     	}
     	case 0:
     	{
-    		Taxi taxi;
+
 				char message[50] = "";
 				int nextDestX, nextDestY;
 
 				close(fd[0]);
 
-				initTaxi(&taxi,MAPPA, signal_handler); /*We initialize the taxi structure*/
+				initTaxi(&taxi,MAPPA, signal_handler, dieHandler); /*We initialize the taxi structure*/
+
 				findNearestSource(&taxi, sources, SO_SOURCES);
 
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
-				while(closing!=1)
+				while(!closing)
 				{
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
@@ -153,17 +157,6 @@ int main(void)
 					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
 					taxi.busy=FALSE;
 				}
-				/*sprintf(message,"---------Taxi--%d------\n \
-							 |Position:     (%d,%d)    |\n \
-							 |Destination:  (%d,%d)    |\n \
-							 |Busy:         %s     |\n \
-							 |TTD:          %d       |\n \
-							 |TLT:          %f       |\n \
-							 |Total Trips:  %d       |\n \
-							 -------------------------\n",getpid(),taxi.position.x,taxi.position.y,\
-							taxi.destination.x,taxi.destination.y,\
-							taxi.busy ? "TRUE" : "FALSE", taxi.TTD, taxi.TLT, taxi.totalTrips);*/
-				taxiDie(taxi, fd[0], fd[1]);
 			}
 				default:
 		    		break; /* Exit parent*/
@@ -185,19 +178,21 @@ int main(void)
 
 		      while(1)
 		      {
+						/*
 						i = 0;
 
-		        while( buf[0] != '\n') /* cycle of reading a message */
+		        while( buf != '\n')  cycle of reading a message
 		        {
-		          read(fd[0], buf, 1);
-							messageFromTaxi[i] = buf[0];
+		          read(fd[0], &buf, sizeof(char));
+							messageFromTaxi[i] = buf;
 							i++;
 		        }
-		        buf[0] = ' ';
+		        buf = ' ';
 						printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
-						messageFromTaxi = "";
+						messageFromTaxi = "";	*/
 		      }
 		    }
+
 		  	exit(EXIT_SUCCESS);
 }
 
@@ -206,6 +201,8 @@ void setup()
   int i = 0,j = 0, k=0;
   int outcome = 0;
   lettura_file();
+	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
+	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
 
@@ -247,14 +244,15 @@ void setup()
 
 void signal_handler(int signal){
     switch(signal){ /* printf AS-Unsafe more info on man signal-safety*/
-        case SIGINT:
+        case SIGINT: /*Only master handles this signal*/
             cleanup(signal);
             break;
-        case SIGALRM:
+        case SIGALRM: /*Only master handles this signal*/
             cleanup(signal);
             break;
-		case SIGUSR1:
-            closing=1;
+		    case SIGUSR1:  /*Only taxi handles this signal*/
+            /*TODO REMOVE CLOSING var*/
+						taxiDie(taxi, fd[0], fd[1]);
             break;
     }
 }
@@ -293,13 +291,11 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
-	free(messageFromTaxi);
+	close(fd[1]);
 	killAllChildren();
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
 	printMap(*MAPPA);
-  if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
-	printf("Pipe closed!\n");
 	printf("All SHM has been detatched!\n");
   if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutex,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
@@ -311,21 +307,27 @@ void cleanup(int signal)
   if(signal != -1)
   printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
 
-	while(buf[0] != EOF)
+	while(buf != EOF)
 	{
 		int i = 0;
 
-		while( buf[0] != '\n') /* cycle of reading a message */
+		while(buf != '\n')
 		{
-			read(fd[0], buf, 1); /*For some reason this reads SPACE*/
-			printf("%d\t",buf[0]);
-			messageFromTaxi[i] = buf[0];
+			read(fd[0], &buf, sizeof(char)); /*For some reason this reads SPACE*/
+			messageFromTaxi[i] = buf;
 			i++;
 		}
-		buf[0] = ' ';
 		printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
 		messageFromTaxi = "";
+		buf = ' ';
+		i = 0;
 	}
+	printf("***************FINE LETTURAAAAAAA***********\n");
+	if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
+	printf("Pipe closed!\n");
+	free(pid_sources);
+	free(pid_taxi);
+	free(messageFromTaxi);
   exit(EXIT_SUCCESS);
 }
 
@@ -376,24 +378,37 @@ void lettura_file(){
   fclose(configFile);
 }
 
-
+Boolean contains(int* array, int pid, int size)
+{
+	int i = 0;
+	for( i = 0; i < size; i++)
+	{
+		if(array[i] == pid) return TRUE;
+	}
+	return FALSE;
+}
 
 
 void killAllChildren()
 {
-	int parent = 0, child = 0, i = 0;
+	int parent = 0, child = 0;
 	FILE* out = popen("ps -e -o ppid= -o pid=", "r");
 	if(out == NULL) TEST_ERROR
-	while(fscanf(out, "%d%d\n",&parent, &child ) != EOF)
+	while(fscanf(out, "%d%d",&parent, &child ) != EOF)
 	{
-		if(parent == getpid() && pid_taxi[0]!=getpid())
+		if(parent == getpid() && contains(pid_sources, child, SO_SOURCES))
 		{
-			printf("killing %d...\n",child);
+			printf("killing source %d...\n",child);
 			kill(child, SIGTERM);
 		}
-		else if(parent == getpid() && pid_taxi[0]==getpid()){
+		else if(parent == getpid() && contains(pid_taxi, child, SO_TAXI)){
+			printf("killing taxi %d...\n",child);
 			kill(child, SIGUSR1);
-			i++;
+		}
+		else if(parent == getpid())
+		{
+			printf("killing Pipe process %d...\n",child);
+			kill(child, SIGTERM);
 		}
 	}
 	pclose(out);
@@ -416,5 +431,10 @@ void sourceSendMessage(Cell* myCell)
 
 	if(msgsnd(msgQId, &msgQ, nbyte, 0) < 0) TEST_ERROR
 
-	printf("[%d S]Richiesta immessa sulla coda\n",getpid());
+	/*printf("[%d S]Richiesta immessa sulla coda\n",getpid());*/
+}
+
+void dieHandler(int signal)
+{
+	kill(getpid(), SIGUSR1);
 }
