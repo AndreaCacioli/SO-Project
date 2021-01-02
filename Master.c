@@ -175,7 +175,6 @@ int main(void)
 					SigHandler.sa_handler = signal_handler;
 					if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 					if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
-					if((messageFromTaxi = malloc(50)) == NULL) TEST_ERROR
 			  	alarm(SO_DURATION);
 
 		      while(1)
@@ -202,18 +201,19 @@ void setup()
 {
   int i = 0,j = 0, k=0;
   int outcome = 0;
-  int Max= (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
+  int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
   	if( SO_HOLES >= Max) {
   	printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
   	exit(EXIT_FAILURE);}
-  
+
   	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
-  
+
 	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
+	if((messageFromTaxi = malloc(100)) == NULL) TEST_ERROR
 
 	if(sources == NULL) TEST_ERROR
 
@@ -300,7 +300,7 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
-	close(fd[1]);
+	FILE* fp = fdopen(fd[0], "r");
 	killAllChildren();
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
@@ -316,21 +316,12 @@ void cleanup(int signal)
   if(signal != -1)
   printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
 
-	while(buf != EOF)
+	while(fgets(messageFromTaxi, 100, fp) != NULL)
 	{
-		int i = 0;
-
-		while(buf != '\n')
-		{
-			read(fd[0], &buf, sizeof(char)); /*For some reason this reads SPACE*/
-			messageFromTaxi[i] = buf;
-			i++;
-		}
 		printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
 		messageFromTaxi = "";
-		buf = ' ';
-		i = 0;
 	}
+	fclose(fp);
 	printf("***************FINE LETTURAAAAAAA***********\n");
 	if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
 	printf("Pipe closed!\n");
