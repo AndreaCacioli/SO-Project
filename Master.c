@@ -16,7 +16,7 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 10
+#define SO_HEIGHT 100
 #define SO_WIDTH 3
 #define MSGLEN 500
 
@@ -142,7 +142,8 @@ int main(void)
 				printTaxi(taxi);
 
 				while(!closing)
-				{
+				{	nextDestX = 0 ;
+					nextDestY = 0;
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
 					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
@@ -418,7 +419,7 @@ void sourceSendMessage(Cell* myCell)
 {
 	int x = 0, y = 0;
 	msgQ.mtype = cellToSemNum(*myCell, MAPPA->width)+1;
-	srand(getpid());
+	srand(time(NULL)+getpid()+rand());
 	do
 	{
 		x = rand() % MAPPA->height;

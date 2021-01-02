@@ -76,7 +76,7 @@ void moveUp(Taxi* taxi, Grid* mappa,int semSetKey)
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
+  printf("[%d]:(%d,%d)->(%d, %d) UP \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);
   dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y],mappa->width));
   taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
   taxi->TTD++;
@@ -86,7 +86,7 @@ void moveDown(Taxi* taxi, Grid* mappa,int semSetKey)
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
+  printf("[%d]:(%d,%d)->(%d, %d) DOWN \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);
   dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x+1][taxi->position.y],mappa->width));
   taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
   taxi->TTD++;
@@ -96,7 +96,7 @@ void moveRight(Taxi* taxi, Grid* mappa,int semSetKey)
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
+  printf("[%d]:(%d,%d)->(%d, %d) RIGHT \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);
   dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y+1],mappa->width));
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
   taxi->TTD++;
@@ -106,7 +106,7 @@ void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey)
   waitOnCell(taxi);
   mappa->grid[taxi->position.x][taxi->position.y].crossings++;
   inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  printf("[%d]:(%d,%d)->(%d, %d)\n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
+  printf("[%d]:(%d,%d)->(%d, %d) LEFT \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);
   dec_sem(semSetKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y-1],mappa->width));
   taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
   taxi->TTD++;
@@ -127,7 +127,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
     if(!mappa->grid[taxi->position.x+1][taxi->position.y].available)
     {
       /*Sotto c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
+      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
         moveRight(taxi, mappa, semSetKey);
         moveDown(taxi, mappa, semSetKey);
@@ -148,7 +148,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
     if(!mappa->grid[taxi->position.x-1][taxi->position.y].available)
     {
       /*Sopra c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0 && taxi->position.y < taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
+      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
         moveRight(taxi, mappa,semSetKey);
         moveUp(taxi, mappa,semSetKey);
@@ -168,7 +168,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y+1].available)
     {
-      if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
         moveDown(taxi, mappa, semSetKey);
         moveRight(taxi, mappa, semSetKey);
@@ -187,7 +187,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey) /*Returns 1 if taxi has arrive
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y-1].available)
     {
-      if(taxi->position.x - 1 < 0 && taxi->position.x < taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
         moveDown(taxi, mappa, semSetKey);
         moveLeft(taxi, mappa, semSetKey);
