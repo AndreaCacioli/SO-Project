@@ -9,6 +9,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <math.h>
 #include <time.h>
 #define Boolean int
 #define FALSE 0
@@ -109,7 +110,8 @@ Boolean canBeHole(Grid grid, Cell c)
 void placeHoles(Grid* grid, int numberOfHoles)
 {
   time_t t;
-  int i=0,j=0,stop=(grid->height*grid->width)*(grid->height*grid->width);
+  int i=0,j=0,stop=pow((grid->height*grid->width),2);
+  
 
   srand((unsigned) time(&t)); /* Initializing the seed */
 

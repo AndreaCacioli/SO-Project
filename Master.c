@@ -11,12 +11,13 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <math.h>
 #include "taxi.h"
 #include "cell.h"
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 100
+#define SO_HEIGHT 10
 #define SO_WIDTH 3
 #define MSGLEN 500
 
@@ -201,7 +202,14 @@ void setup()
 {
   int i = 0,j = 0, k=0;
   int outcome = 0;
+  int Max= (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
+  	if( SO_HOLES >= Max) {
+  	printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
+  	exit(EXIT_FAILURE);}
+  
+  	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
+  
 	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
