@@ -25,7 +25,7 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
-void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int))
+void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey)
 {
   int x,y;
   struct sigaction SigHandler;
@@ -34,10 +34,10 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
   {
     x = (rand() % MAPPA->height);
     y = (rand() % MAPPA->width);
-  } while(!MAPPA->grid[x][y].available);
+  } while(!MAPPA->grid[x][y].available || semctl(semSetKey,cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL) <= 0);
 
+  dec_sem(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width));
   taxi->position = MAPPA->grid[x][y];
-  /*taxi->position = MAPPA->grid[0][0]; *****************/
   taxi->busy = FALSE;
   taxi->destination = MAPPA->grid[0][0];
   taxi->TTD = 0;
@@ -53,7 +53,7 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
  }
 
 
-void sendMsgOnPipe(char* s, int fdRead, int fdWrite) /*TODO REMOVE fdread from sendMsgOnPipe*/
+void sendMsgOnPipe(char* s, int fdWrite)
 {
   write(fdWrite, s ,strlen(s) * sizeof(char));
 }
@@ -284,12 +284,11 @@ void inc_sem(int sem_id, int index)
     sem_op.sem_flg = 0;
     semop(sem_id, &sem_op, 1);
 }
-void taxiDie(Taxi taxi, int fdRead, int fdWrite)
+void taxiDie(Taxi taxi, int fdWrite)
 {
   char* message = malloc(500);
-  close(fdRead);
   sprintf(message, "%d %d %d %d %d %d %f %d\n", taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
-  sendMsgOnPipe(message,fdRead,fdWrite);
+  sendMsgOnPipe(message,fdWrite);
   free(message);
   close(fdWrite);
   exit(EXIT_SUCCESS);

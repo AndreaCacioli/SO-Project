@@ -56,6 +56,7 @@ void dieHandler(int signal);
 
 Grid* MAPPA;
 Cell** sources;
+Taxi* bestTaxis;
 pid_t* pid_taxi;
 pid_t* pid_sources;
 int fd[2];
@@ -64,7 +65,6 @@ int semSetKey = 0;
 int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
-Boolean closing = FALSE;
 char* messageFromTaxi;
 char buf = ' ';
 Taxi taxi;
@@ -135,15 +135,16 @@ int main(void)
 
 				close(fd[0]);
 
-				initTaxi(&taxi,MAPPA, signal_handler, dieHandler); /*We initialize the taxi structure*/
+				initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
 
 				findNearestSource(&taxi, sources, SO_SOURCES);
 
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
-				while(!closing)
-				{	nextDestX = 0 ;
+				while(1) /*Gets out when receives signal SIGUSR1*/
+				{
+					nextDestX = 0;
 					nextDestY = 0;
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
@@ -203,17 +204,21 @@ void setup()
   int outcome = 0;
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
-  	if( SO_HOLES >= Max) {
-  	printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
-  	exit(EXIT_FAILURE);}
 
-  	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
+	if( SO_HOLES >= Max)
+	{
+  	printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
+  	exit(EXIT_FAILURE);
+	}
+
+	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
 
 	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
 	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
 	if((messageFromTaxi = malloc(100)) == NULL) TEST_ERROR
+	if((bestTaxis = calloc(SO_TAXI, sizeof(Taxi))) == NULL) TEST_ERROR
 
 	if(sources == NULL) TEST_ERROR
 
@@ -260,8 +265,7 @@ void signal_handler(int signal){
             cleanup(signal);
             break;
 		    case SIGUSR1:  /*Only taxi handles this signal*/
-            /*TODO REMOVE CLOSING var*/
-						taxiDie(taxi, fd[0], fd[1]);
+						taxiDie(taxi, fd[1]);
             break;
     }
 }
@@ -300,6 +304,7 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
+	int taxiNumber = 0;
 	FILE* fp = fdopen(fd[0], "r");
 	killAllChildren();
 	printf("All child processes killed\n");
@@ -316,9 +321,12 @@ void cleanup(int signal)
   if(signal != -1)
   printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
 
-	while(fgets(messageFromTaxi, 100, fp) != NULL)
+	while(fgets(messageFromTaxi, 100, fp) != NULL && strchr(messageFromTaxi, EOF) == NULL)
 	{
-		printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
+		sscanf(messageFromTaxi, "%d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
+		printf("TAXI INFO FROM PIPE %d\n",taxiNumber);
+		printTaxi(bestTaxis[taxiNumber]);
+		taxiNumber++;
 		messageFromTaxi = "";
 	}
 	fclose(fp);
@@ -328,6 +336,7 @@ void cleanup(int signal)
 	free(pid_sources);
 	free(pid_taxi);
 	free(messageFromTaxi);
+	free(bestTaxis);
   exit(EXIT_SUCCESS);
 }
 
