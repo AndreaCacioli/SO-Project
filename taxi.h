@@ -19,6 +19,7 @@ typedef struct taxi
 }Taxi;
 
 extern void printTaxi(Taxi t);
+extern void printTaxiWithGivenPid(Taxi t, pid_t pid);
 extern void sendMsgOnPipe(char* s, int fdWrite);
 extern int move (Taxi* taxi,Grid* mappa,int semSetKey,int SO_TIMEOUT);
 extern void setDestination(Taxi* taxi, Cell c);

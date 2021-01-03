@@ -24,6 +24,17 @@ void printTaxi(Taxi t)
   printf("|Total Trips:  %d       |\n",t.totalTrips);
   printf("-------------------------\n");
 }
+void printTaxiWithGivenPid(Taxi t, pid_t pid)
+{
+  printf("---------Taxi--%d------\n",pid);
+  printf("|Position:     (%d,%d)    |\n",t.position.x,t.position.y);
+  printf("|Destination:  (%d,%d)    |\n",t.destination.x,t.destination.y);
+  printf("|Busy:         %s     |\n", t.busy ? "TRUE" : "FALSE");
+  printf("|TTD:          %d       |\n",t.TTD);
+  printf("|TLT:          %f       |\n",t.TLT);
+  printf("|Total Trips:  %d       |\n",t.totalTrips);
+  printf("-------------------------\n");
+}
 
 void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey)
 {
@@ -319,7 +330,7 @@ void inc_sem(int sem_id, int index)
 void taxiDie(Taxi taxi, int fdWrite)
 {
   char* message = malloc(500);
-  sprintf(message, "%d %d %d %d %d %d %f %d\n", taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
+  sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);
   free(message);
   close(fdWrite);

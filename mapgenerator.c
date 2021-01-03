@@ -174,6 +174,6 @@ Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, 
   *grid = AllocateMap(height,width, minCap, maxCap, minDelay, maxDelay, FALSE);
   placeHoles(grid, numberOfHoles);
   placeSources(grid,numberOfSources);
-  printMap(*grid);
+  /*printMap(*grid);*/
   return grid;
 }

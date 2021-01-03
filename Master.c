@@ -82,7 +82,7 @@ int main(void)
 {
     pid_t pid;
     int i = 0;
-	printf("[%d M] STARTING...\n",getpid());
+	/*printf("[%d M] STARTING...\n",getpid());*/
     setup();
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
@@ -228,7 +228,7 @@ void setup()
 
    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
 
-  semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
+  	semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
 	semMutex = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600/*Read and alter*/);
 	if(semMutex == -1) TEST_ERROR
 	if(semctl(semMutex, 0, SETVAL, 1) == -1) TEST_ERROR
@@ -245,14 +245,14 @@ void setup()
   {
     for(j = 0; j < MAPPA->width; j++)
     {
-      printf("%d\t", semctl(semSetKey, /*semnum=*/cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));
+      /*printf("%d\t", semctl(semSetKey, cellToSemNum(MAPPA->grid[i][j],MAPPA->width), GETVAL));*/
 			if(MAPPA->grid[i][j].source)
 			{
 				sources[k] = &MAPPA->grid[i][j];
 				k++;
 			}
     }
-    printf("\n");
+    /*printf("\n");*/
   }
 }
 
@@ -299,35 +299,34 @@ void printTopCells(int nTopCells)
 		printCell(crox[i]);
 		printf("\n");
 	}
-	printf("\n");
+	printf("\n\n");
 }
 
 void cleanup(int signal)
 {
 	int taxiNumber = 0;
 	FILE* fp = fdopen(fd[ReadEnd], "r");
-	printf("Starting cleanup!\n");
+	if(signal==14) printf("\n***TIME IS OVER***\n");
 	killAllChildren();
-	printf("All child processes killed\n");
-	printMap(*MAPPA);
-	printf("All SHM has been detatched!\n");
-  if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
+	/*printMap(*MAPPA);*/
+	printf("\n\nUnanswered requests:\n");
+	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
+	{
+		printf("► %s Created by source %ld\n", msgQ.mtext, msgQ.mtype - 1);
+	}
+	printf("\n");
+
+  	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutex,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
-  if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
-	printf("Semaphore And Q marked as deletable\n");
+  	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
-	printf("Array of sources freed!\n");
   
 
 	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
-		
-		printf("Raw data: %s", messageFromTaxi);
-		sscanf(messageFromTaxi, "%d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
-		printf("TAXI %d INFO FROM PIPE\n",taxiNumber);
-		printTaxi(bestTaxis[taxiNumber]); /*PID of taxi is lost: don't look at it!*/
-		printf("feof = %d\n", feof(fp));
+		pid_t taxiPid = 0;
+		sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &taxiPid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 		taxiNumber++;
 		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
@@ -338,8 +337,6 @@ void cleanup(int signal)
 	free(pid_taxi);
 	free(messageFromTaxi);
 	free(bestTaxis);
-	if(signal==14) printf("***TIME IS OVER***\n");
-	/*if(singal!=-1) ???? boh ???*/
 	printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
   	exit(EXIT_SUCCESS);
 }
@@ -397,8 +394,8 @@ void compareTaxi(Taxi* compTaxi)
 	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
 	
 	if(SO_TAXI==1){
-		printf("**Only one can be the Best**\n");
-		printTaxi(compTaxi[0]);
+		printf("**Only one can be the Best**\n"); /*Not if it died and respawned*/
+		printTaxi(compTaxi[0]);						/*TODO: check length of array*/
 	}
 	else{
 		for(i=0;i<SO_TAXI;i++){
@@ -442,16 +439,16 @@ void killAllChildren()
 	{
 		if(parent == getpid() && contains(pid_sources, child, SO_SOURCES))
 		{
-			printf("killing source %d...\n",child);
+			/*printf("killing source %d...\n",child);*/
 			kill(child, SIGTERM);
 		}
 		else if(parent == getpid() && contains(pid_taxi, child, SO_TAXI)){
-			printf("killing taxi %d...\n",child);
+			/*printf("killing taxi %d...\n",child);*/
 			kill(child, SIGUSR1);
 		}
 		else if(parent == getpid())
 		{
-			printf("killing Pipe process %d...\n",child);
+			/*printf("killing Pipe process %d...\n",child);*/
 			kill(child, SIGTERM);
 		}
 	}
