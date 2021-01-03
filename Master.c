@@ -321,7 +321,7 @@ void cleanup(int signal)
   if(signal != -1)
   printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
 
-	while(fgets(messageFromTaxi, 100, fp) != NULL && strchr(messageFromTaxi, EOF) == NULL)
+	while(fgets(messageFromTaxi, 100, fp) != NULL && feof(fp) == 0)
 	{
 		sscanf(messageFromTaxi, "%d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 		printf("TAXI INFO FROM PIPE %d\n",taxiNumber);

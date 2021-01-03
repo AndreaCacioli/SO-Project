@@ -255,6 +255,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int Busy)
     if(seconds>t->TLT){
         t->TLT=seconds;
     }
+    t->totalTrips++;
   }
   else
       while(move(t,MAPPA,semSetKey) == 0);
