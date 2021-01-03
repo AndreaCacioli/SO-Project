@@ -149,7 +149,7 @@ int main(void)
 					nextDestY = 0;
 					findNearestSource(&taxi, sources, SO_SOURCES);
 					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
-					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
+					moveTo(&taxi, MAPPA,semSetKey,taxi.busy,SO_TIMEOUT);
 					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 					{
 						continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
@@ -158,7 +158,7 @@ int main(void)
 					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
 					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
 					taxi.busy=TRUE;
-					moveTo(&taxi, MAPPA,semSetKey,taxi.busy);
+					moveTo(&taxi, MAPPA,semSetKey,taxi.busy,SO_TIMEOUT);
 					taxi.busy=FALSE;
 				}
 			}
@@ -306,9 +306,9 @@ void cleanup(int signal)
 {
 	int taxiNumber = 0;
 	FILE* fp = fdopen(fd[ReadEnd], "r");
+	printf("Starting cleanup!\n");
 	killAllChildren();
 	printf("All child processes killed\n");
-	printf("Starting cleanup!\n");
 	printMap(*MAPPA);
 	printf("All SHM has been detatched!\n");
   if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
