@@ -20,6 +20,8 @@
 #define SO_HEIGHT 10
 #define SO_WIDTH 3
 #define MSGLEN 500
+#define ReadEnd 0
+#define WriteEnd 1
 
 #define TEST_ERROR if (errno) {fprintf(stderr,		\
 				       "%s:%d: PID=%5d: Error %d (%s)\n", \
@@ -79,12 +81,10 @@ int main(void)
 {
     pid_t pid;
     int i = 0;
-		Cell prova;
-		prova.x = 0;
-		prova.y = 1;
-		printf("[%d M] STARTING...\n",getpid());
+	printf("[%d M] STARTING...\n",getpid());
     setup();
-		for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
+	
+	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
     	switch(pid_sources[i]=pid=fork())
 			{
@@ -98,7 +98,7 @@ int main(void)
 				Cell* myCell = sources[i];
 				int i = 0;
 				struct sembuf sem_op;
-				if(close(fd[1]) == -1 || close(fd[0]) == -1)TEST_ERROR /*Sources don't use PIPE*/
+				if(close(fd[WriteEnd]) == -1 || close(fd[ReadEnd]) == -1)TEST_ERROR /*Sources don't use PIPE*/
 
 				myCell->taken = TRUE;
 				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
@@ -121,7 +121,7 @@ int main(void)
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
     	switch(pid_taxi[i]=pid=fork())
-			{
+		{
     	case -1:
     	{
     		TEST_ERROR;
@@ -133,7 +133,7 @@ int main(void)
 				char message[50] = "";
 				int nextDestX, nextDestY;
 
-				close(fd[0]);
+				close(fd[ReadEnd]); /*Closing Read End*/
 
 				initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
 
@@ -169,17 +169,18 @@ int main(void)
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
-					int i = 0;
-		    			/*HANDLER SIGINT & SIGINT*/
-					struct sigaction SigHandler;
-					bzero(&SigHandler, sizeof(SigHandler));
-					SigHandler.sa_handler = signal_handler;
-					if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
-					if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
+				int i = 0;
+				
+					/*HANDLER SIGINT & SIGALARM*/
+				struct sigaction SigHandler;
+				bzero(&SigHandler, sizeof(SigHandler));
+				SigHandler.sa_handler = signal_handler;
+				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
+				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
 			  	alarm(SO_DURATION);
-
-		      while(1)
-		      {
+			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
+		      	while(1)
+		      	{
 						/*
 						i = 0;
 
@@ -192,7 +193,7 @@ int main(void)
 		        buf = ' ';
 						printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
 						messageFromTaxi = "";	*/
-		      }
+		      	}
 		    }
 
 		  	exit(EXIT_SUCCESS);
@@ -207,8 +208,8 @@ void setup()
 
 	if( SO_HOLES >= Max)
 	{
-  	printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
-  	exit(EXIT_FAILURE);
+		printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
+		exit(EXIT_FAILURE);
 	}
 
 	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
@@ -226,7 +227,6 @@ void setup()
 	if (msgQId < 0) TEST_ERROR
 
    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
-	/*Qua la mappa é Accessibile!!!*/
 
   semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
 	semMutex = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600/*Read and alter*/);
@@ -241,7 +241,7 @@ void setup()
     exit(1);
   }
 
-  for(i = 0; i < MAPPA->height; i++) /*Per qualche motivo 'sto doppio ciclo rompe la mappa*/
+  for(i = 0; i < MAPPA->height; i++) 
   {
     for(j = 0; j < MAPPA->width; j++)
     {
@@ -264,8 +264,8 @@ void signal_handler(int signal){
         case SIGALRM: /*Only master handles this signal*/
             cleanup(signal);
             break;
-		    case SIGUSR1:  /*Only taxi handles this signal*/
-						taxiDie(taxi, fd[1]);
+		case SIGUSR1:  /*Only taxi handles this signal*/
+			taxiDie(taxi, fd[WriteEnd]);
             break;
     }
 }
@@ -305,7 +305,7 @@ void printTopCells(int nTopCells)
 void cleanup(int signal)
 {
 	int taxiNumber = 0;
-	FILE* fp = fdopen(fd[0], "r");
+	FILE* fp = fdopen(fd[ReadEnd], "r");
 	killAllChildren();
 	printf("All child processes killed\n");
 	printf("Starting cleanup!\n");
@@ -318,26 +318,28 @@ void cleanup(int signal)
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
 	printf("Array of sources freed!\n");
-  if(signal != -1)
-  printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+  
 
-	while(fgets(messageFromTaxi, 100, fp) != NULL && feof(fp) == 0)
+	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
+		
+		printf("Raw data: %s", messageFromTaxi);
 		sscanf(messageFromTaxi, "%d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
-		printf("TAXI INFO FROM PIPE %d\n",taxiNumber);
-		printTaxi(bestTaxis[taxiNumber]);
+		printf("TAXI %d INFO FROM PIPE\n",taxiNumber);
+		printTaxi(bestTaxis[taxiNumber]); /*PID of taxi is lost: don't look at it!*/
+		printf("feof = %d\n", feof(fp));
 		taxiNumber++;
-		messageFromTaxi = "";
+		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
+
 	fclose(fp);
-	printf("***************FINE LETTURAAAAAAA***********\n");
-	if(close(fd[1]) == -1 || close(fd[0])) TEST_ERROR
-	printf("Pipe closed!\n");
+	close(fd[ReadEnd]);
 	free(pid_sources);
 	free(pid_taxi);
 	free(messageFromTaxi);
 	free(bestTaxis);
-  exit(EXIT_SUCCESS);
+	if(signal != -1) printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+  	exit(EXIT_SUCCESS);
 }
 
 void lettura_file(){
