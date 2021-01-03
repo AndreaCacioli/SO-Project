@@ -52,6 +52,7 @@ void setup();
 void cleanup(int signal);
 void signal_handler(int signal);
 void killAllChildren();
+void compareTaxi(Taxi* compTaxi);
 void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
 void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
@@ -217,11 +218,10 @@ void setup()
 	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
-	sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*));
+	
+	if((sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*)))== NULL) TEST_ERROR
 	if((messageFromTaxi = malloc(100)) == NULL) TEST_ERROR
 	if((bestTaxis = calloc(SO_TAXI, sizeof(Taxi))) == NULL) TEST_ERROR
-
-	if(sources == NULL) TEST_ERROR
 
 	msgQId = msgget(ftok("./Input.config", 1), IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
@@ -331,14 +331,16 @@ void cleanup(int signal)
 		taxiNumber++;
 		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
-
+	compareTaxi(bestTaxis);
 	fclose(fp);
 	close(fd[ReadEnd]);
 	free(pid_sources);
 	free(pid_taxi);
 	free(messageFromTaxi);
 	free(bestTaxis);
-	if(signal != -1) printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
+	if(signal==14) printf("***TIME IS OVER***\n");
+	/*if(singal!=-1) ???? boh ???*/
+	printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
   	exit(EXIT_SUCCESS);
 }
 
@@ -388,6 +390,37 @@ void lettura_file(){
   }
   fclose(configFile);
 }
+
+void compareTaxi(Taxi* compTaxi)
+{
+	int i;
+	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
+	
+	if(SO_TAXI==1){
+		printf("**Only one can be the Best**\n");
+		printTaxi(compTaxi[0]);
+	}
+	else{
+		for(i=0;i<SO_TAXI;i++){
+			if(compTaxi[i].totalTrips > bestTotTrips.totalTrips){
+				bestTotTrips = compTaxi[i];
+			}
+			if(compTaxi[i].TTD > bestTTD.TTD){
+				bestTTD = compTaxi[i];
+			}
+			if(compTaxi[i].TLT > bestTLT.TLT){
+				bestTLT = compTaxi[i];
+			}
+		}
+		printf("Printing The Best TOTAL TRIPS TAXI\n");
+		printTaxi(bestTotTrips);
+		printf("Printing The Best TTD TAXI\n");
+		printTaxi(bestTTD);
+		printf("Printing The Best TLT TAXI\n");
+		printTaxi(bestTLT);
+	}
+}
+
 
 Boolean contains(int* array, int pid, int size)
 {
