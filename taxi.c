@@ -327,9 +327,10 @@ void inc_sem(int sem_id, int index)
     sem_op.sem_flg = 0;
     semop(sem_id, &sem_op, 1);
 }
-void taxiDie(Taxi taxi, int fdWrite)
+void taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id)
 {
   char* message = malloc(500);
+  inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);
   free(message);

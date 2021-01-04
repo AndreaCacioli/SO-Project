@@ -265,7 +265,7 @@ void signal_handler(int signal){
             cleanup(signal);
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
-			taxiDie(taxi, fd[WriteEnd]);
+			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey);
             break;
     }
 }
