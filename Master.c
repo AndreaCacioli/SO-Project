@@ -17,7 +17,7 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 10
+#define SO_HEIGHT 40
 #define SO_WIDTH 3
 #define MSGLEN 500
 #define ReadEnd 0
@@ -297,7 +297,7 @@ void printTopCells(int nTopCells)
 	for(i = 0; i < nTopCells ; i++)
 	{
 		printf("%d: ",i+1);
-		printCell(crox[i]);
+		printCell(crox[i], FALSE);
 		printf("\n");
 	}
 	printf("\n\n");
@@ -309,7 +309,7 @@ void cleanup(int signal)
 	FILE* fp = fdopen(fd[ReadEnd], "r");
 	if(signal==14) printf("\n***TIME IS OVER***\n");
 	killAllChildren();
-	/*printMap(*MAPPA);*/
+	printMap(*MAPPA, FALSE);
 	printf("\n\nUnanswered requests:\n");
 	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
 	{
@@ -483,5 +483,11 @@ void dieHandler(int signal)
 
 Cell semNumToCell(int num, Grid Mappa)
 {
-	return Mappa.grid[num / Mappa.width][num - (num / Mappa.width)];
+	int i = 0;
+	while (num > Mappa.width)
+	{
+		num -= Mappa.width;
+		i++;
+	}
+	return Mappa.grid[i][num];
 }

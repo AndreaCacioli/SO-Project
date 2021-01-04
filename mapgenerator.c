@@ -16,7 +16,7 @@
 #define TRUE !FALSE
 
 
-void printMap(Grid grid)
+void printMap(Grid grid, Boolean compact)
 {
   size_t i,j;
 
@@ -25,7 +25,7 @@ void printMap(Grid grid)
   {
     for (j = 0; j < grid.width; j++)
     {
-      printCell(grid.grid[i][j]);
+      printCell(grid.grid[i][j], compact);
     }
     printf("\n");
   }
@@ -78,7 +78,7 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       grid.grid[i][j].taken = FALSE;
 
       if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
-      if (verbose) printCell(grid.grid[i][j]);
+      if (verbose) printCell(grid.grid[i][j], FALSE);
       if (verbose) printf("\n");
     }
   }
