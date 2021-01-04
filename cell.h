@@ -19,5 +19,4 @@ typedef struct cell
 extern void printCell(Cell c);
 extern int cellToSemNum(Cell c, int width);
 
-
 #endif

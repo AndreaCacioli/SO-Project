@@ -56,6 +56,7 @@ void compareTaxi(Taxi* compTaxi);
 void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
 void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
+Cell semNumToCell(int num, Grid Mappa);
 
 Grid* MAPPA;
 Cell** sources;
@@ -312,7 +313,7 @@ void cleanup(int signal)
 	printf("\n\nUnanswered requests:\n");
 	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
 	{
-		printf("► %s Created by source %ld\n", msgQ.mtext, msgQ.mtype - 1);
+		printf("► %s Created by source (%d, %d)\n", msgQ.mtext, semNumToCell( msgQ.mtype - 1, *MAPPA).x,semNumToCell( msgQ.mtype - 1, *MAPPA).y);
 	}
 	printf("\n");
 
@@ -478,4 +479,9 @@ void sourceSendMessage(Cell* myCell)
 void dieHandler(int signal)
 {
 	kill(getpid(), SIGUSR1);
+}
+
+Cell semNumToCell(int num, Grid Mappa)
+{
+	return Mappa.grid[num / Mappa.width][num - (num / Mappa.width)];
 }
