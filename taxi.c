@@ -57,9 +57,11 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
 
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;
+  sigaction(SIGUSR2, &SigHandler, NULL);
   sigaction(SIGUSR1, &SigHandler, NULL);
   SigHandler.sa_handler = die;
   sigaction(SIGINT, &SigHandler, NULL);
+  
 
  }
 

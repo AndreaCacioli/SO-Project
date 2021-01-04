@@ -30,10 +30,9 @@
 				       getpid(),			\
 				       errno,				\
 				       strerror(errno)); \
-							 semctl(semSetKey,0,IPC_RMID); \
-						 	 semctl(semMutex,0,IPC_RMID); \
-						   msgctl(msgQId, IPC_RMID, NULL); \
-						   exit(EXIT_FAILURE);}
+							semctl(semSetKey,0,IPC_RMID); \
+						    msgctl(msgQId, IPC_RMID, NULL); \
+						    exit(EXIT_FAILURE);}
 
 
 int SO_TAXI;
@@ -61,17 +60,17 @@ Cell semNumToCell(int num, Grid Mappa);
 Grid* MAPPA;
 Cell** sources;
 Taxi* bestTaxis;
+Taxi taxi;
 pid_t* pid_taxi;
 pid_t* pid_sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
-int semMutex = 0;
 int msgQId = 0;
 int nbyte = 0;
+int ready=0;
 char* messageFromTaxi;
 char buf = ' ';
-Taxi taxi;
 struct my_msg_ msgQ;
 
 struct my_msg_ {
@@ -83,7 +82,7 @@ int main(void)
 {
     pid_t pid;
     int i = 0;
-	/*printf("[%d M] STARTING...\n",getpid());*/
+
     setup();
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
@@ -104,12 +103,13 @@ int main(void)
 
 				myCell->taken = TRUE;
 				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
+				
 
 				while(1)
 				{
-						sourceSendMessage(myCell);
-						i++;
-						sleep(1);
+					sourceSendMessage(myCell);
+					i++;
+					sleep(1);
 				}
 
 				exit(EXIT_SUCCESS);
@@ -134,7 +134,6 @@ int main(void)
 
 				char message[50] = "";
 				int nextDestX, nextDestY;
-
 				close(fd[ReadEnd]); /*Closing Read End*/
 
 				initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
@@ -143,6 +142,9 @@ int main(void)
 
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
+
+				while(!ready){ /* Gets out when receives signal SIGUSR2 */
+				}
 
 				while(1) /*Gets out when receives signal SIGUSR1*/
 				{
@@ -172,13 +174,15 @@ int main(void)
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
 				int i = 0;
-				
-					/*HANDLER SIGINT & SIGALARM*/
+				/*HANDLER SIGINT & SIGALARM*/
 				struct sigaction SigHandler;
 				bzero(&SigHandler, sizeof(SigHandler));
 				SigHandler.sa_handler = signal_handler;
 				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
+				for(i=0;i<SO_TAXI;i++){
+					kill(pid_taxi[i],SIGUSR2);
+				}
 			  	alarm(SO_DURATION);
 			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
 		      	while(1)
@@ -227,20 +231,17 @@ void setup()
 	msgQId = msgget(ftok("./Input.config", 1), IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
 
-   MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
+    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
 
   	semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
-	semMutex = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600/*Read and alter*/);
-	if(semMutex == -1) TEST_ERROR
-	if(semctl(semMutex, 0, SETVAL, 1) == -1) TEST_ERROR
 
-  outcome = pipe(fd);
-  if(outcome == -1)
-  {
-    fprintf(stderr, "Error creating pipe\n");
+	outcome = pipe(fd);
+	if(outcome == -1)
+	{
+		fprintf(stderr, "Error creating pipe\n");
 		TEST_ERROR
-    exit(1);
-  }
+		exit(1);
+	}
 
   for(i = 0; i < MAPPA->height; i++) 
   {
@@ -267,6 +268,9 @@ void signal_handler(int signal){
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey);
+            break;
+		case SIGUSR2:  
+			ready=1;
             break;
     }
 }
@@ -318,7 +322,6 @@ void cleanup(int signal)
 	printf("\n");
 
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
-	if(semctl(semMutex,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
   	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
