@@ -157,7 +157,7 @@ void placeSources(Grid* grid, int Sour)
   }
 }
 
-int initSem (Grid* grid)
+int initSem (Grid* grid, Boolean mutex)
 {
   int i,j;
   int ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT | 0600/*Read and alter*/);
@@ -165,7 +165,8 @@ int initSem (Grid* grid)
   {
     for(j = 0; j < grid->width; j++)
     {
-      semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, grid->grid[i][j].capacity);
+      if(mutex) semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, 1);
+      else semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, grid->grid[i][j].capacity);
     }
   }
   return ret;

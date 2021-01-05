@@ -67,6 +67,7 @@ pid_t* pid_sources;
 int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
+int semMutexKey = 0;
 int msgQId = 0;
 int nbyte = 0;
 int ready=0;
@@ -152,17 +153,17 @@ int main(void)
 					nextDestX = 0;
 					nextDestY = 0;
 					findNearestSource(&taxi, sources, SO_SOURCES);
-					printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);
-					moveTo(&taxi, MAPPA,semSetKey,taxi.busy,SO_TIMEOUT);
+					/*printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);*/
+					moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,taxi.busy,SO_TIMEOUT);
 					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 					{
 						continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
 					}
 					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
-					printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);
+					/*printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);*/
 					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
 					taxi.busy=TRUE;
-					moveTo(&taxi, MAPPA,semSetKey,taxi.busy,SO_TIMEOUT);
+					moveTo(&taxi, MAPPA,semSetKey,semMutexKey,taxi.busy,SO_TIMEOUT);
 					taxi.busy=FALSE;
 				}
 			}
@@ -186,22 +187,19 @@ int main(void)
 				}
 			  	alarm(SO_DURATION);
 			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
+				
+				struct timespec lastPrintTime;
+				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
 		      	{
-					everySecond(MAPPA);
-					sleep(1);
-						/*
-						i = 0;
-
-		        while( buf != '\n')  cycle of reading a message
-		        {
-		          read(fd[0], &buf, sizeof(char));
-							messageFromTaxi[i] = buf;
-							i++;
-		        }
-		        buf = ' ';
-						printf("Message sent from taxi on PIPE: %s\n",messageFromTaxi);
-						messageFromTaxi = "";	*/
+					struct timespec currentTime;
+					clock_gettime(CLOCK_REALTIME, &currentTime);
+					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
+					{
+						everySecond(MAPPA);
+						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
+					}
+					
 		      	}
 		    }
 
@@ -236,7 +234,9 @@ void setup()
 
     MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
 
-  	semSetKey = initSem(MAPPA); /*Creo e inizializzo un semaforo per ogni Cell*/
+  	semSetKey = initSem(MAPPA, FALSE); /*Creo e inizializzo un semaforo per ogni Cell*/
+	semMutexKey = initSem(MAPPA, TRUE);/*Creo e inizializzo un semaforo per ogni Cell per impedire ai taxi di scrivere male i crossings*/
+
 
 	outcome = pipe(fd);
 	if(outcome == -1)
