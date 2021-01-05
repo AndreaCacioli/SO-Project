@@ -15,18 +15,7 @@
 
 void printTaxi(Taxi t)
 {
-  printf("---------Taxi--%d------\n",getpid());
-  printf("|Position:     (%d,%d)    |\n",t.position.x,t.position.y);
-  printf("|Destination:  (%d,%d)    |\n",t.destination.x,t.destination.y);
-  printf("|Busy:         %s     |\n", t.busy ? "TRUE" : "FALSE");
-  printf("|TTD:          %d       |\n",t.TTD);
-  printf("|TLT:          %f       |\n",t.TLT);
-  printf("|Total Trips:  %d       |\n",t.totalTrips);
-  printf("-------------------------\n");
-}
-void printTaxiWithGivenPid(Taxi t, pid_t pid)
-{
-  printf("---------Taxi--%d------\n",pid);
+  printf("---------Taxi--%d------\n",t.pid);
   printf("|Position:     (%d,%d)    |\n",t.position.x,t.position.y);
   printf("|Destination:  (%d,%d)    |\n",t.destination.x,t.destination.y);
   printf("|Busy:         %s     |\n", t.busy ? "TRUE" : "FALSE");
@@ -54,6 +43,7 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
   taxi->TTD = 0;
   taxi->TLT = 0;
   taxi->totalTrips = 0;
+  taxi->pid = getpid();
 
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;

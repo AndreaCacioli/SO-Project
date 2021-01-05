@@ -176,6 +176,8 @@ int main(void)
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
 				int i = 0;
+				struct timespec lastPrintTime;
+
 				/*HANDLER SIGINT & SIGALARM*/
 				struct sigaction SigHandler;
 				bzero(&SigHandler, sizeof(SigHandler));
@@ -188,7 +190,6 @@ int main(void)
 			  	alarm(SO_DURATION);
 			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
 				
-				struct timespec lastPrintTime;
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
 		      	{
@@ -332,8 +333,7 @@ void cleanup(int signal)
 
 	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
-		pid_t taxiPid = 0;
-		sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &taxiPid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
+		sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 		taxiNumber++;
 		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
