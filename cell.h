@@ -16,7 +16,7 @@ typedef struct cell
 
 }Cell;
 
-extern void printCell(Cell c, Boolean compact);
+extern void printCell(Cell c, int semKey, Boolean compact);
 extern int cellToSemNum(Cell c, int width);
 
 #endif

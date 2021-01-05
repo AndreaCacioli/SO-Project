@@ -56,6 +56,7 @@ void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header f
 void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
 Cell semNumToCell(int num, Grid Mappa);
+void everySecond(Grid* Mappa);
 
 Grid* MAPPA;
 Cell** sources;
@@ -187,6 +188,8 @@ int main(void)
 			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
 		      	while(1)
 		      	{
+					everySecond(MAPPA);
+					sleep(1);
 						/*
 						i = 0;
 
@@ -301,7 +304,7 @@ void printTopCells(int nTopCells)
 	for(i = 0; i < nTopCells ; i++)
 	{
 		printf("%d: ",i+1);
-		printCell(crox[i], FALSE);
+		printCell(crox[i],0, FALSE); /* no taxi alive */
 		printf("\n");
 	}
 	printf("\n\n");
@@ -313,7 +316,7 @@ void cleanup(int signal)
 	FILE* fp = fdopen(fd[ReadEnd], "r");
 	if(signal==14) printf("\n***TIME IS OVER***\n");
 	killAllChildren();
-	printMap(*MAPPA, FALSE);
+	printMap(*MAPPA,semSetKey,FALSE);
 	printf("\n\nUnanswered requests:\n");
 	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
 	{
@@ -493,4 +496,9 @@ Cell semNumToCell(int num, Grid Mappa)
 		i++;
 	}
 	return Mappa.grid[i][num];
+}
+
+
+void everySecond(Grid* Mappa){
+	printMap(*Mappa,semSetKey,TRUE);
 }

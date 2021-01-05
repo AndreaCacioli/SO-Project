@@ -16,16 +16,19 @@
 #define TRUE !FALSE
 
 
-void printMap(Grid grid, Boolean compact)
+void printMap(Grid grid,int semKey,Boolean compact)
 {
   size_t i,j;
+  int ntaxi = 0,valsem = 0;
 
   printf("Printing the GRID:\n");
   for (i = 0; i < grid.height; i++)
   {
     for (j = 0; j < grid.width; j++)
     {
-      printCell(grid.grid[i][j], compact);
+      valsem = semctl(semKey, cellToSemNum(grid.grid[i][j],grid.width), GETVAL);
+      ntaxi = grid.grid[i][j].capacity - valsem;  
+      printCell(grid.grid[i][j], ntaxi,compact);
     }
     printf("\n");
   }
@@ -78,7 +81,7 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       grid.grid[i][j].taken = FALSE;
 
       if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
-      if (verbose) printCell(grid.grid[i][j], FALSE);
+      if (verbose) printCell(grid.grid[i][j],0, FALSE); 
       if (verbose) printf("\n");
     }
   }
