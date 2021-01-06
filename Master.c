@@ -57,6 +57,7 @@ void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
 Cell semNumToCell(int num, Grid Mappa);
 void everySecond(Grid* Mappa);
+void taxiWork();
 
 Grid* MAPPA;
 Cell** sources;
@@ -71,8 +72,8 @@ int semMutexKey = 0;
 int semStartKey = 0;
 int msgQId = 0;
 int nbyte = 0;
+int taxiNumber = 0;
 char* messageFromTaxi;
-char buf = ' ';
 struct my_msg_ msgQ;
 
 struct my_msg_ {
@@ -133,39 +134,8 @@ int main(void)
     	}
     	case 0:
     	{
-
-				char message[50] = "";
-				int nextDestX, nextDestY;
-				close(fd[ReadEnd]); /*Closing Read End*/
-
-				initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
-
-				findNearestSource(&taxi, sources, SO_SOURCES);
-
-				printf("A new taxi has been born!\n");
-				printTaxi(taxi);
-
-				dec_sem(semStartKey, 0);
-
-				while(1) /*Gets out when receives signal SIGUSR1*/
-				{
-					nextDestX = 0;
-					nextDestY = 0;
-					findNearestSource(&taxi, sources, SO_SOURCES);
-					/*printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);*/
-					moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,taxi.busy,SO_TIMEOUT);
-					if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
-					{
-						continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
-					}
-					sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
-					/*printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);*/
-					setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
-					taxi.busy=TRUE;
-					moveTo(&taxi, MAPPA,semSetKey,semMutexKey,taxi.busy,SO_TIMEOUT);
-					taxi.busy=FALSE;
-				}
-			}
+				taxiWork();
+		}
 				default:
 		    		break; /* Exit parent*/
 		  }
@@ -177,6 +147,7 @@ int main(void)
 				int i = 0;
 				struct timespec lastPrintTime;
 				struct sembuf sem_op;
+				FILE* fp = fdopen(fd[ReadEnd], "r");
 
 				/*HANDLER SIGINT & SIGALARM*/
 				struct sigaction SigHandler;
@@ -194,8 +165,15 @@ int main(void)
     			semop(semStartKey, &sem_op, 1);
 
 			  	alarm(SO_DURATION);
-			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
-				
+
+				printf("Printing Taxi pids:  ");
+				for(i = 0; i < SO_TAXI + taxiNumber; i++)
+				{
+					printf("%d\t", pid_taxi[i]);
+				}
+				printf("Fine stampa\n");
+
+
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
 		      	{
@@ -203,9 +181,41 @@ int main(void)
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
-						everySecond(MAPPA);
+						/*everySecond(MAPPA);*/
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
+
+					/*Detect if taxi died and in case it did make it respawn*/
+					if(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
+					{
+						sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
+						strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
+						if((bestTaxis = realloc(bestTaxis, sizeof(Taxi))) == NULL) TEST_ERROR
+						if((pid_taxi = realloc(pid_taxi, sizeof(int))) == NULL) TEST_ERROR
+
+						inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
+						
+
+						if((pid_taxi[SO_TAXI + taxiNumber] = fork()) == 0)
+						{
+							printf("[%d T]I was born cause another process died!\n", getpid());
+							taxiWork();
+						}
+						else if(pid_taxi[SO_TAXI + taxiNumber] == -1) TEST_ERROR
+						else 
+						{
+							printf("Printing Taxi pids:  ");
+							for(i = 0; i < SO_TAXI + taxiNumber; i++)
+							{
+								printf("%d\t", pid_taxi[i]);
+							}
+							printf("Fine stampa\n");
+							taxiNumber++;
+							continue;
+						}
+
+					}
+
 					
 		      	}
 		    }
@@ -317,9 +327,9 @@ void printTopCells(int nTopCells)
 
 void cleanup(int signal)
 {
-	int taxiNumber = 0;
 	FILE* fp = fdopen(fd[ReadEnd], "r");
 	if(signal==14) printf("\n***TIME IS OVER***\n");
+	close(fd[WriteEnd]);
 	killAllChildren();
 	printMap(*MAPPA,semSetKey,FALSE);
 	printf("\n\nUnanswered requests:\n");
@@ -403,14 +413,17 @@ void lettura_file(){
 
 void compareTaxi(Taxi* compTaxi)
 {
-	int i;
-	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
-	
-	if(SO_TAXI==1){
-		printf("**Only one can be the Best**\n"); /*Not if it died and respawned*/
-		printTaxi(compTaxi[0]);						/*TODO: check length of array*/
+	int i = 0;
+
+	printf("Printing Taxi pids:\n");
+	for(i = 0; i < SO_TAXI + taxiNumber; i++)
+	{
+		printf("%d\t", pid_taxi[i]);
 	}
-	else{
+
+
+	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
+
 		for(i=0;i<SO_TAXI;i++){
 			if(compTaxi[i].totalTrips > bestTotTrips.totalTrips){
 				bestTotTrips = compTaxi[i];
@@ -428,7 +441,7 @@ void compareTaxi(Taxi* compTaxi)
 		printTaxi(bestTTD);
 		printf("Printing The Best TLT TAXI\n");
 		printTaxi(bestTLT);
-	}
+	
 }
 
 
@@ -507,4 +520,36 @@ Cell semNumToCell(int num, Grid Mappa)
 
 void everySecond(Grid* Mappa){
 	printMap(*Mappa,semSetKey,TRUE);
+}
+
+void taxiWork()
+{
+	char message[50] = "";
+	int nextDestX, nextDestY;
+	close(fd[ReadEnd]); /*Closing Read End*/
+
+	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
+
+	findNearestSource(&taxi, sources, SO_SOURCES);
+
+	dec_sem(semStartKey, 0);
+
+	while(1) /*Gets out when receives signal SIGUSR1*/
+	{
+		nextDestX = 0;
+		nextDestY = 0;
+		findNearestSource(&taxi, sources, SO_SOURCES);
+		/*printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);*/
+		moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,taxi.busy,SO_TIMEOUT);
+		if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
+		{
+			continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
+		}
+		sscanf(msgQ.mtext, "%d%d",&nextDestX, &nextDestY);
+		/*printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);*/
+		setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
+		taxi.busy=TRUE;
+		moveTo(&taxi, MAPPA,semSetKey,semMutexKey,taxi.busy,SO_TIMEOUT);
+		taxi.busy=FALSE;
+	}
 }
