@@ -311,7 +311,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
 void dec_sem (int sem_id, int index)
 {
     struct sembuf sem_op;
-    if(semctl(sem_id, /*semnum=*/index, GETVAL) == 0)
+    if(semctl(sem_id, /*semnum=*/index, GETVAL) <= 0)
     {
       printf("Taxi [%d] sleeping\n",getpid());
     }

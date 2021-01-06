@@ -68,9 +68,9 @@ int fd[2];
 int rcvsignal = 0;
 int semSetKey = 0;
 int semMutexKey = 0;
+int semStartKey = 0;
 int msgQId = 0;
 int nbyte = 0;
-int ready=0;
 char* messageFromTaxi;
 char buf = ' ';
 struct my_msg_ msgQ;
@@ -145,8 +145,7 @@ int main(void)
 				printf("A new taxi has been born!\n");
 				printTaxi(taxi);
 
-				while(!ready){ /* Gets out when receives signal SIGUSR2 */
-				}
+				dec_sem(semStartKey, 0);
 
 				while(1) /*Gets out when receives signal SIGUSR1*/
 				{
@@ -177,6 +176,7 @@ int main(void)
 		    {
 				int i = 0;
 				struct timespec lastPrintTime;
+				struct sembuf sem_op;
 
 				/*HANDLER SIGINT & SIGALARM*/
 				struct sigaction SigHandler;
@@ -184,9 +184,15 @@ int main(void)
 				SigHandler.sa_handler = signal_handler;
 				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
-				for(i=0;i<SO_TAXI;i++){
-					kill(pid_taxi[i],SIGUSR2);
-				}
+				
+				/*
+				 *	Informo i taxi che possono partire!
+				 */
+    			sem_op.sem_num  = 0;
+    			sem_op.sem_op   = SO_TAXI;
+    			sem_op.sem_flg = 0;
+    			semop(semStartKey, &sem_op, 1);
+
 			  	alarm(SO_DURATION);
 			  	close(fd[WriteEnd]); /*Close write end of the pipe*/
 				
@@ -237,7 +243,8 @@ void setup()
 
   	semSetKey = initSem(MAPPA, FALSE); /*Creo e inizializzo un semaforo per ogni Cell*/
 	semMutexKey = initSem(MAPPA, TRUE);/*Creo e inizializzo un semaforo per ogni Cell per impedire ai taxi di scrivere male i crossings*/
-
+	semStartKey = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600);/*Create semaphore to make every taxi start at the same time*/
+	if(semctl(semStartKey, 0, SETVAL, 0)) TEST_ERROR /*Initialize to 0 so every taxi starts asleep*/
 
 	outcome = pipe(fd);
 	if(outcome == -1)
@@ -272,9 +279,6 @@ void signal_handler(int signal){
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey);
-            break;
-		case SIGUSR2:  
-			ready=1;
             break;
     }
 }
@@ -327,6 +331,7 @@ void cleanup(int signal)
 
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
+	if(semctl(semStartKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
   	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
