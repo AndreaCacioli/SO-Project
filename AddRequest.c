@@ -38,9 +38,10 @@ int main(void)
   printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
 
   scanf("%ld %s %s",&msgQ.mtype,x,y);
-  printf("Done reading\n");
+  printf("Done reading:\nx:%s\ny:%s\nType:%ld\n", x, y, msgQ.mtype);
   x = strcat(x," ");
   x = strcat(x,y);
+  x = strcat(x," ");
   strcpy(msgQ.mtext, x);
   printf("Sending a message of type: %ld\nMessage: %s\n",msgQ.mtype,msgQ.mtext);
   if(msgsnd(msgQId, &msgQ, strlen(msgQ.mtext), 0) < 0) TEST_ERROR

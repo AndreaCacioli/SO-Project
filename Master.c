@@ -326,6 +326,7 @@ void cleanup(int signal)
 	printf("\n");
 
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
+	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
   	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
