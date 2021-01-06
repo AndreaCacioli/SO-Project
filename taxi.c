@@ -287,20 +287,22 @@ void findNearestSource(Taxi* taxi, Cell** sources, int entries)
 
 void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int SO_TIMEOUT)
 {
-  clock_t x_startTime,x_endTime;
-  float seconds=0;
+  struct timespec startingTime, arrivalTime;
+  float seconds = 0;
+  long nanos = 0;
 
   if(Busy==TRUE){ /* counting TLT */
-    x_startTime = clock();
+    clock_gettime(CLOCK_REALTIME, &startingTime);
     while(move(t,MAPPA,semSetKey,SO_TIMEOUT,semMutexKey) == 0);
-    x_endTime = clock();
+    clock_gettime(CLOCK_REALTIME, &arrivalTime);
 
-    seconds = (float)(x_endTime - x_startTime) / CLOCKS_PER_SEC;
+    nanos = arrivalTime.tv_nsec - startingTime.tv_nsec; 
+    seconds = nanos / pow(10,9);
 
-    if(seconds>t->TLT){
-        t->TLT=seconds;
+    if(seconds > t->TLT){
+        t->TLT = seconds;
     }
-    t->totalTrips++;
+    t -> totalTrips++;
   }
   else
       while(move(t,MAPPA,semSetKey,SO_TIMEOUT,semMutexKey) == 0);
@@ -311,10 +313,10 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
 void dec_sem (int sem_id, int index)
 {
     struct sembuf sem_op;
-    if(semctl(sem_id, /*semnum=*/index, GETVAL) <= 0)
+    /*if(semctl(sem_id, index, GETVAL) <= 0)
     {
       printf("Taxi [%d] sleeping\n",getpid());
-    }
+    }*/
     sem_op.sem_num  = index;
     sem_op.sem_op   = -1;
     sem_op.sem_flg = 0;
