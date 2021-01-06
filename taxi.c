@@ -47,11 +47,10 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
 
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;
-  sigaction(SIGUSR2, &SigHandler, NULL);
   sigaction(SIGUSR1, &SigHandler, NULL);
   SigHandler.sa_handler = die;
   sigaction(SIGINT, &SigHandler, NULL);
-  
+  sigaction(SIGALRM, &SigHandler, NULL);
 
  }
 
@@ -76,14 +75,8 @@ void waitOnCell(Taxi* taxi)
 
 void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
 {
-  clock_t Timestart,Timemove; 
-  Timestart = clock();
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
-  Timemove = clock();
-  if((Timemove-Timestart)>=SO_TIMEOUT){
-    printf("\n*** [%d] DIE***\n\n",getpid());
-    exit(EXIT_FAILURE);
-  }
 
   dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
@@ -97,15 +90,9 @@ void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKe
 }
 void moveDown(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
 {
-
-  clock_t Timestart,Timemove; 
-  Timestart = clock();
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
-  Timemove = clock();
-  if((Timemove-Timestart)>=SO_TIMEOUT){
-    printf("\n*** [%d] DIE***\n\n",getpid());
-    exit(EXIT_FAILURE);
-  }
+
   dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
   inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
@@ -118,15 +105,9 @@ void moveDown(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutex
 }
 void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
 {
-  clock_t Timestart,Timemove; 
-  Timestart = clock();
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
-  Timemove = clock();
-  if((Timemove-Timestart)>=SO_TIMEOUT){
-    printf("\n*** [%d] DIE***\n\n",getpid());
-    exit(EXIT_FAILURE);
-  }
-
+  
   dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
   inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
@@ -139,14 +120,8 @@ void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMute
 }
 void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
 {
-  clock_t Timestart,Timemove; 
-  Timestart = clock();
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
-  Timemove = clock();
-  if((Timemove-Timestart)>=SO_TIMEOUT){
-    printf("\n*** [%d] DIE***\n\n",getpid());
-    exit(EXIT_FAILURE);
-  }
 
   dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
   mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
@@ -335,6 +310,7 @@ void inc_sem(int sem_id, int index)
 void taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id)
 {
   char* message = malloc(500);
+  printf("Sono morto %d\n", getpid());
   inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);

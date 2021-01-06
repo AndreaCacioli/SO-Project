@@ -17,8 +17,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 40
-#define SO_WIDTH 3
+#define SO_HEIGHT 5
+#define SO_WIDTH 5
 #define MSGLEN 500
 #define ReadEnd 0
 #define WriteEnd 1
@@ -446,7 +446,7 @@ Boolean contains(int* array, int pid, int size)
 void killAllChildren()
 {
 	int parent = 0, child = 0;
-	FILE* out = popen("ps -e -o ppid= -o pid=", "r");
+	FILE* out = popen("ps -A -o ppid= -o pid=", "r");
 	if(out == NULL) TEST_ERROR
 	while(fscanf(out, "%d%d",&parent, &child ) != EOF)
 	{
