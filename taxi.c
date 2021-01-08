@@ -310,7 +310,6 @@ void inc_sem(int sem_id, int index)
 void taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id)
 {
   char* message = malloc(500);
-  printf("Sono morto %d\n", getpid());
   inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);

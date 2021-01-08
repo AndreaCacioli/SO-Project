@@ -17,8 +17,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 5
-#define SO_WIDTH 5
+#define SO_HEIGHT 10
+#define SO_WIDTH 10
 #define MSGLEN 500
 #define ReadEnd 0
 #define WriteEnd 1
@@ -52,7 +52,7 @@ void cleanup(int signal);
 void signal_handler(int signal);
 void killAllChildren();
 void compareTaxi(Taxi* compTaxi);
-void sourceTakePlace(Cell* myCell); /*TODO Think about moving this to a header file*/
+void sourceTakePlace(Cell* myCell);
 void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
 Cell semNumToCell(int num, Grid Mappa);
@@ -66,7 +66,7 @@ Taxi taxi;
 pid_t* pid_sources;
 int fd[2];
 int rcvsignal = 0;
-int semSetKey = 0;
+int semSetKey = 0;		/*TODO Remove in case of error*/
 int semMutexKey = 0;
 int semStartKey = 0;
 int msgQId = 0;
@@ -87,6 +87,7 @@ int main(void)
     int i = 0;
 
     setup();
+	printMap(*MAPPA, semSetKey, FALSE);
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
@@ -105,7 +106,7 @@ int main(void)
 				if(close(fd[WriteEnd]) == -1 || close(fd[ReadEnd]) == -1)TEST_ERROR /*Sources don't use PIPE*/
 
 				myCell->taken = TRUE;
-				printf("[%d S]Found Place at: (%d,%d)\n",getpid(), myCell->x, myCell->y);
+			
 				
 
 				while(1)
@@ -176,7 +177,7 @@ int main(void)
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
-						/*everySecond(MAPPA);*/
+						everySecond(MAPPA);
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
 
@@ -186,27 +187,18 @@ int main(void)
 						if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 						sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 						strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
-						printf("new size bestTaxis: %d\n",(taxiNumber + 1) * sizeof(Taxi));
 						inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
 
 						bornTaxi = (int*) realloc(bornTaxi, (SO_TAXI + taxiNumber + 1) * sizeof(int));
-						printf("new size bornTaxi: %d\n",(SO_TAXI + taxiNumber + 1) * sizeof(int));
 						switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
 						{
 							case 0:
-								printf("[%d T]I was born cause another process died!\n", getpid());
 								taxiWork();
 								break;
 							case -1:
 								TEST_ERROR
 								break;
 							default:
-								printf("Printing Taxi pids:  ");
-								for(i = 0; i <= taxiNumber; i++)
-								{
-									printf("%d\t", bestTaxis[i].pid);
-								}
-								printf("Fine stampa\n");
 								taxiNumber++;
 								continue;
 
@@ -324,24 +316,17 @@ void printTopCells(int nTopCells)
 void cleanup(int signal)
 {
 	FILE* fp = fdopen(fd[ReadEnd], "r");
+	int i = 0, successfulTotalTrips = 0;
 	if(signal==14) printf("\n***TIME IS OVER***\n");
 	close(fd[WriteEnd]);
 	killAllChildren();
-	printMap(*MAPPA,semSetKey,FALSE);
-	printf("\n\nUnanswered requests:\n");
-	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
-	{
-		printf("► %s Created by source (%d, %d)\n", msgQ.mtext, semNumToCell( msgQ.mtype - 1, *MAPPA).x,semNumToCell( msgQ.mtype - 1, *MAPPA).y);
-	}
-	printf("\n");
-
+	
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semStartKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
   	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	free(sources);
-  
 
 	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
@@ -349,6 +334,28 @@ void cleanup(int signal)
 		taxiNumber++;
 		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
+
+	printf("\n\nUnanswered requests:\n");
+	while(msgrcv(msgQId, &msgQ,MSGLEN,0,IPC_NOWAIT) >= 0)
+	{
+		printf("► %s Created by source (%d, %d)\n", msgQ.mtext, semNumToCell( msgQ.mtype - 1, *MAPPA).x,semNumToCell( msgQ.mtype - 1, *MAPPA).y);
+	}
+	printf("\n");
+	printf("\n\nAborted requests:\n");
+	for(i = 0; i <= taxiNumber; i++)
+	{
+		if(bestTaxis[i].busy)
+		{
+			printf("The request (%d, %d) was not completed by taxi %d (aborted)\n",bestTaxis[i].destination.x,bestTaxis[i].destination.y,bestTaxis[i].pid);
+		}
+	}
+	for(i = 0; i <= taxiNumber; i++)
+	{
+		successfulTotalTrips += bestTaxis[i].totalTrips;
+	}
+	printf("\n\nTotal Completed Trips:\n\t%d\n", successfulTotalTrips);
+
+	
 	compareTaxi(bestTaxis);
 	fclose(fp);
 	close(fd[ReadEnd]);
@@ -411,16 +418,9 @@ void compareTaxi(Taxi* compTaxi)
 {
 	int i = 0;
 
-	printf("Printing Taxi pids:\n");
-	for(i = 0; i < taxiNumber; i++)
-	{
-		printf("%d\t", bestTaxis[i].pid);
-	}
-
-
 	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
 
-		for(i=0;i<SO_TAXI;i++){
+		for(i=0;i<taxiNumber;i++){
 			if(compTaxi[i].totalTrips > bestTotTrips.totalTrips){
 				bestTotTrips = compTaxi[i];
 			}
