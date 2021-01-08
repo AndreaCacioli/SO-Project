@@ -63,7 +63,6 @@ Grid* MAPPA;
 Cell** sources;
 Taxi* bestTaxis;
 Taxi taxi;
-pid_t* pid_taxi;
 pid_t* pid_sources;
 int fd[2];
 int rcvsignal = 0;
@@ -73,6 +72,7 @@ int semStartKey = 0;
 int msgQId = 0;
 int nbyte = 0;
 int taxiNumber = 0;
+int* bornTaxi = NULL;
 char* messageFromTaxi;
 struct my_msg_ msgQ;
 
@@ -125,7 +125,9 @@ int main(void)
 
     for(i = 0 ; i < SO_TAXI ; i++) 									/*TAXI*/
     {
-    	switch(pid_taxi[i]=pid=fork())
+		bornTaxi = (int*)realloc(bornTaxi, (i + 1) * sizeof(int));
+		
+    	switch(bornTaxi[i] = pid = fork())
 		{
     	case -1:
     	{
@@ -166,13 +168,6 @@ int main(void)
 
 			  	alarm(SO_DURATION);
 
-				printf("Printing Taxi pids:  ");
-				for(i = 0; i < SO_TAXI + taxiNumber; i++)
-				{
-					printf("%d\t", pid_taxi[i]);
-				}
-				printf("Fine stampa\n");
-
 
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
@@ -188,32 +183,35 @@ int main(void)
 					/*Detect if taxi died and in case it did make it respawn*/
 					if(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 					{
+						if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 						sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 						strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
-						if((bestTaxis = realloc(bestTaxis, sizeof(Taxi))) == NULL) TEST_ERROR
-						if((pid_taxi = realloc(pid_taxi, sizeof(int))) == NULL) TEST_ERROR
-
+						printf("new size bestTaxis: %d\n",(taxiNumber + 1) * sizeof(Taxi));
 						inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
+
+						bornTaxi = (int*) realloc(bornTaxi, (SO_TAXI + taxiNumber + 1) * sizeof(int));
+						printf("new size bornTaxi: %d\n",(SO_TAXI + taxiNumber + 1) * sizeof(int));
+						switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
+						{
+							case 0:
+								printf("[%d T]I was born cause another process died!\n", getpid());
+								taxiWork();
+								break;
+							case -1:
+								TEST_ERROR
+								break;
+							default:
+								printf("Printing Taxi pids:  ");
+								for(i = 0; i <= taxiNumber; i++)
+								{
+									printf("%d\t", bestTaxis[i].pid);
+								}
+								printf("Fine stampa\n");
+								taxiNumber++;
+								continue;
+
+						}
 						
-
-						if((pid_taxi[SO_TAXI + taxiNumber] = fork()) == 0)
-						{
-							printf("[%d T]I was born cause another process died!\n", getpid());
-							taxiWork();
-						}
-						else if(pid_taxi[SO_TAXI + taxiNumber] == -1) TEST_ERROR
-						else 
-						{
-							printf("Printing Taxi pids:  ");
-							for(i = 0; i < SO_TAXI + taxiNumber; i++)
-							{
-								printf("%d\t", pid_taxi[i]);
-							}
-							printf("Fine stampa\n");
-							taxiNumber++;
-							continue;
-						}
-
 					}
 
 					
@@ -238,13 +236,11 @@ void setup()
 
 	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
 
-	pid_taxi = calloc(sizeof(pid_t), SO_TAXI);
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
 	
 	if((sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*)))== NULL) TEST_ERROR
 	if((messageFromTaxi = malloc(100)) == NULL) TEST_ERROR
-	if((bestTaxis = calloc(SO_TAXI, sizeof(Taxi))) == NULL) TEST_ERROR
 
 	msgQId = msgget(ftok("./Input.config", 1), IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
@@ -357,8 +353,8 @@ void cleanup(int signal)
 	fclose(fp);
 	close(fd[ReadEnd]);
 	free(pid_sources);
-	free(pid_taxi);
 	free(messageFromTaxi);
+	free(bornTaxi);
 	free(bestTaxis);
 	printf("Handling signal #%d (%s)\n",signal, strsignal(signal));
   	exit(EXIT_SUCCESS);
@@ -416,9 +412,9 @@ void compareTaxi(Taxi* compTaxi)
 	int i = 0;
 
 	printf("Printing Taxi pids:\n");
-	for(i = 0; i < SO_TAXI + taxiNumber; i++)
+	for(i = 0; i < taxiNumber; i++)
 	{
-		printf("%d\t", pid_taxi[i]);
+		printf("%d\t", bestTaxis[i].pid);
 	}
 
 
@@ -468,7 +464,7 @@ void killAllChildren()
 			/*printf("killing source %d...\n",child);*/
 			kill(child, SIGTERM);
 		}
-		else if(parent == getpid() && contains(pid_taxi, child, SO_TAXI)){
+		else if(parent == getpid() && contains(bornTaxi, child, SO_TAXI + taxiNumber)){
 			/*printf("killing taxi %d...\n",child);*/
 			kill(child, SIGUSR1);
 		}
