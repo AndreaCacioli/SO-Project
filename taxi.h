@@ -30,6 +30,7 @@ extern void moveTo(Taxi* taxi, Grid* MAPPA,int semSetKey,int semMutexKey,int Bus
 extern void dec_sem (int sem_id, int index);
 extern void inc_sem(int sem_id, int index);
 extern void taxiDie(Taxi t, int fdWrite, Grid grid, int sem_id);
+extern void compareTaxi(Taxi* compTaxi,int taxiNumber);
 
 
 #endif

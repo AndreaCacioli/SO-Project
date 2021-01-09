@@ -286,6 +286,32 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
 
 }
 
+void compareTaxi(Taxi* compTaxi, int taxiNumber)
+{
+	int i = 0;
+
+	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
+
+		for(i=0;i<taxiNumber;i++){
+			if(compTaxi[i].totalTrips > bestTotTrips.totalTrips){
+				bestTotTrips = compTaxi[i];
+			}
+			if(compTaxi[i].TTD > bestTTD.TTD){
+				bestTTD = compTaxi[i];
+			}
+			if(compTaxi[i].TLT > bestTLT.TLT){
+				bestTLT = compTaxi[i];
+			}
+		}
+		printf("Printing The Best TOTAL TRIPS TAXI\n");
+		printTaxi(bestTotTrips);
+		printf("Printing The Best TTD TAXI\n");
+		printTaxi(bestTTD);
+		printf("Printing The Best TLT TAXI\n");
+		printTaxi(bestTLT);
+	
+}
+
 
 void dec_sem (int sem_id, int index)
 {

@@ -54,12 +54,10 @@ void setup();
 void cleanup(int signal);
 void signal_handler(int signal);
 void killAllChildren();
-void compareTaxi(Taxi* compTaxi);
 void sourceTakePlace(Cell* myCell);
 void sourceSendMessage(Cell* myCell);
 void dieHandler(int signal);
 Cell semNumToCell(int num, Grid Mappa);
-void everySecond(Grid* Mappa);
 void taxiWork();
 
 Grid* MAPPA = NULL;
@@ -384,7 +382,7 @@ void cleanup(int signal)
 	printf("\n\nTotal Completed Trips:\n\t%d\n", successfulTotalTrips);
 
 	
-	compareTaxi(bestTaxis);
+	compareTaxi(bestTaxis,taxiNumber);
 	fclose(fp);
 	close(fd[ReadEnd]);
 	free(sources);
@@ -442,33 +440,6 @@ void lettura_file(){
   }
   fclose(configFile);
 }
-
-void compareTaxi(Taxi* compTaxi)
-{
-	int i = 0;
-
-	Taxi bestTotTrips=compTaxi[0], bestTTD=compTaxi[0], bestTLT=compTaxi[0];
-
-		for(i=0;i<taxiNumber;i++){
-			if(compTaxi[i].totalTrips > bestTotTrips.totalTrips){
-				bestTotTrips = compTaxi[i];
-			}
-			if(compTaxi[i].TTD > bestTTD.TTD){
-				bestTTD = compTaxi[i];
-			}
-			if(compTaxi[i].TLT > bestTLT.TLT){
-				bestTLT = compTaxi[i];
-			}
-		}
-		printf("Printing The Best TOTAL TRIPS TAXI\n");
-		printTaxi(bestTotTrips);
-		printf("Printing The Best TTD TAXI\n");
-		printTaxi(bestTTD);
-		printf("Printing The Best TLT TAXI\n");
-		printTaxi(bestTLT);
-	
-}
-
 
 Boolean contains(int* array, int pid, int size)
 {
