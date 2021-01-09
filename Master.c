@@ -30,9 +30,11 @@
 				       getpid(),			\
 				       errno,				\
 				       strerror(errno)); \
-							semctl(semSetKey,0,IPC_RMID); \
-						    msgctl(msgQId, IPC_RMID, NULL); \
-						    exit(EXIT_FAILURE);}
+						if(semSetKey > 0) semctl(semSetKey,0,IPC_RMID); \
+						if(semMutexKey > 0) semctl(semMutexKey,0,IPC_RMID); \
+						if(semStartKey > 0) semctl(semStartKey,0,IPC_RMID); \
+						if(msgQId > 0) msgctl(msgQId, IPC_RMID, NULL); \
+						exit(EXIT_FAILURE);}
 
 
 int SO_TAXI;
@@ -59,13 +61,12 @@ Cell semNumToCell(int num, Grid Mappa);
 void everySecond(Grid* Mappa);
 void taxiWork();
 
-Grid* MAPPA;
+Grid* MAPPA = NULL;
 Cell** sources;
 Taxi* bestTaxis;
 Taxi taxi;
 pid_t* pid_sources;
 int fd[2];
-int rcvsignal = 0;
 int semSetKey = 0;		/*TODO Remove in case of error*/
 int semMutexKey = 0;
 int semStartKey = 0;
@@ -86,8 +87,9 @@ int main(void)
     pid_t pid;
     int i = 0;
 
+	printf("Creating Map!\n");
     setup();
-	printMap(*MAPPA, semSetKey, FALSE);
+	printf("Map has been created!\n");
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
@@ -120,6 +122,7 @@ int main(void)
 		  }
 
 		    	default:
+					printf("Source number #%d initiated\n", i);
 		    		break;
 		  }
 		}
@@ -140,15 +143,18 @@ int main(void)
 				taxiWork();
 		}
 				default:
+					printf("Taxi number #%d initiated with PID: %d\n", i, bornTaxi[i]);
 		    		break; /* Exit parent*/
 		  }
 		}
 
+		
 
 		    if(pid != 0) /* Working area of the parent after fork a child */
 		    {
 				int i = 0;
 				struct timespec lastPrintTime;
+				struct timespec currentTime;
 				struct sembuf sem_op;
 				FILE* fp = fdopen(fd[ReadEnd], "r");
 
@@ -158,32 +164,40 @@ int main(void)
 				SigHandler.sa_handler = signal_handler;
 				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
-				
+
+				sleep(1); /*Wait until taxis are initialized, maybe a semaphore is required*/
+
 				/*
-				 *	Informo i taxi che possono partire!
+				 *	Informing taxis they can start!
 				 */
     			sem_op.sem_num  = 0;
     			sem_op.sem_op   = SO_TAXI;
     			sem_op.sem_flg = 0;
     			semop(semStartKey, &sem_op, 1);
 
+				printMap(*MAPPA, semSetKey, TRUE);
+
 			  	alarm(SO_DURATION);
 
-
+				printf("Entering Master Cycle\n");
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
 		      	{
-					struct timespec currentTime;
+					printf("While cycle begins!\n");
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
-						everySecond(MAPPA);
+						/*printMap(*MAPPA, semSetKey, TRUE);*/
+						printf("Working...\n");
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
-
-					/*Detect if taxi died and in case it did make it respawn*/
-					if(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
+					
+					printf("Let's see if somebody died!\n");
+					/*Detects if taxi died and in case it did, makes it respawn*/
+					if(!feof(fp) && fgets(messageFromTaxi, 100, fp) != NULL)
 					{
+						printf("for some reason it got stuck here!\n");
+						printf("A taxi has died!\n");
 						if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 						sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 						strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
@@ -199,13 +213,17 @@ int main(void)
 								TEST_ERROR
 								break;
 							default:
+								for(i = -SO_TAXI;i < taxiNumber;i++)
+								{
+									printf("%d/t", bornTaxi[SO_TAXI + i]);
+								}
+								printf("\n");
 								taxiNumber++;
 								continue;
-
 						}
-						
 					}
-
+					
+					printf("While cycle ends!\n");
 					
 		      	}
 		    }
@@ -326,11 +344,13 @@ void cleanup(int signal)
 	if(semctl(semStartKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
   	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
-	free(sources);
+	
 
 	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
 		sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
+		printTaxi(bestTaxis[taxiNumber]);
+		printf("\n");
 		taxiNumber++;
 		strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
 	}
@@ -359,6 +379,7 @@ void cleanup(int signal)
 	compareTaxi(bestTaxis);
 	fclose(fp);
 	close(fd[ReadEnd]);
+	free(sources);
 	free(pid_sources);
 	free(messageFromTaxi);
 	free(bornTaxi);

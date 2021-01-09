@@ -36,7 +36,9 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
     y = (rand() % MAPPA->width);
   } while(!MAPPA->grid[x][y].available || semctl(semSetKey,cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL) <= 0);
 
+  /*printf("My semaphore before: %d\n",semctl(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL));*/
   dec_sem(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width));
+  /*printf("My semaphore after: %d\n",semctl(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL));*/
   taxi->position = MAPPA->grid[x][y];
   taxi->busy = FALSE;
   taxi->destination = MAPPA->grid[0][0];
@@ -288,10 +290,6 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
 void dec_sem (int sem_id, int index)
 {
     struct sembuf sem_op;
-    /*if(semctl(sem_id, index, GETVAL) <= 0)
-    {
-      printf("Taxi [%d] sleeping\n",getpid());
-    }*/
     sem_op.sem_num  = index;
     sem_op.sem_op   = -1;
     sem_op.sem_flg = 0;

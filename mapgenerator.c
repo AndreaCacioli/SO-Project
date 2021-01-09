@@ -28,7 +28,8 @@ void printMap(Grid grid,int semKey,Boolean compact)
     {
       valsem = semctl(semKey, cellToSemNum(grid.grid[i][j],grid.width), GETVAL);
       ntaxi = grid.grid[i][j].capacity - valsem;  
-      printCell(grid.grid[i][j], ntaxi,compact);
+      /*printf("numero taxi su cella (%d, %d) = %d", i, j, ntaxi);*/
+      printCell(grid.grid[i][j], ntaxi, compact);
     }
     printf("\n");
   }
