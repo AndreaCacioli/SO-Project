@@ -167,7 +167,12 @@ int main(void)
 				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
 
-				sleep(1); /*Wait until taxis are initialized, maybe a semaphore is required*/
+				for(i = 5; i > 0; i--)/*Cool countdown to build up pressure!*/
+				{
+					printf("Starting in %d...\n",i);
+					sleep(1); 
+				}
+				
 
 				/*
 				 *	Informing taxis they can start!
@@ -177,7 +182,7 @@ int main(void)
     			sem_op.sem_flg = 0;
     			semop(semStartKey, &sem_op, 1);
 
-				printMap(*MAPPA, semSetKey, TRUE);
+				printMap(*MAPPA, semSetKey, semMutexKey, TRUE);
 
 			  	alarm(SO_DURATION);
 
@@ -187,7 +192,7 @@ int main(void)
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
-						printMap(*MAPPA, semSetKey, TRUE);
+						printMap(*MAPPA, semSetKey, semMutexKey, TRUE);
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
 					
@@ -535,11 +540,6 @@ Cell semNumToCell(int num, Grid Mappa)
 		i++;
 	}
 	return Mappa.grid[i][num];
-}
-
-
-void everySecond(Grid* Mappa){
-	printMap(*Mappa,semSetKey,TRUE);
 }
 
 void taxiWork()

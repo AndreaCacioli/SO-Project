@@ -16,7 +16,7 @@
 #define TRUE !FALSE
 
 
-void printMap(Grid grid,int semKey,Boolean compact)
+void printMap(Grid grid,int semKey,int semMutexKey,Boolean compact)
 {
   size_t i,j;
   int ntaxi = 0,valsem = 0;
@@ -29,7 +29,9 @@ void printMap(Grid grid,int semKey,Boolean compact)
       valsem = semctl(semKey, cellToSemNum(grid.grid[i][j],grid.width), GETVAL);
       ntaxi = grid.grid[i][j].capacity - valsem;  
       /*printf("numero taxi su cella (%d, %d) = %d", i, j, ntaxi);*/
+      dec_sem(semMutexKey, cellToSemNum(grid.grid[i][j],grid.width)); /*TODO Maybe we should use one sem for the whole map*/
       printCell(grid.grid[i][j], ntaxi, compact);
+      inc_sem(semMutexKey, cellToSemNum(grid.grid[i][j],grid.width));
     }
     printf("\n");
   }
