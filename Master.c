@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <math.h>
@@ -17,8 +18,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 10
-#define SO_WIDTH 10
+#define SO_HEIGHT 5
+#define SO_WIDTH 5
 #define MSGLEN 500
 #define ReadEnd 0
 #define WriteEnd 1
@@ -155,6 +156,7 @@ int main(void)
 				int i = 0;
 				struct timespec lastPrintTime;
 				struct timespec currentTime;
+				struct pollfd pollres;
 				struct sembuf sem_op;
 				FILE* fp = fdopen(fd[ReadEnd], "r");
 
@@ -179,51 +181,51 @@ int main(void)
 
 			  	alarm(SO_DURATION);
 
-				printf("Entering Master Cycle\n");
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 		      	while(1)
 		      	{
-					printf("While cycle begins!\n");
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
-						/*printMap(*MAPPA, semSetKey, TRUE);*/
-						printf("Working...\n");
+						printMap(*MAPPA, semSetKey, TRUE);
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
 					
-					printf("Let's see if somebody died!\n");
-					/*Detects if taxi died and in case it did, makes it respawn*/
-					if(!feof(fp) && fgets(messageFromTaxi, 100, fp) != NULL)
-					{
-						printf("for some reason it got stuck here!\n");
-						printf("A taxi has died!\n");
-						if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
-						sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
-						strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
-						inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
+					pollres.fd=fd[ReadEnd];
+					pollres.events = POLLIN;
 
-						bornTaxi = (int*) realloc(bornTaxi, (SO_TAXI + taxiNumber + 1) * sizeof(int));
-						switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
+					if (poll(&pollres, 1, 0) == 1)
+					{
+						/*Detects if taxi died and in case it did, makes it respawn*/
+						/* data available */
+						if(!feof(fp) && fgets(messageFromTaxi, 100, fp) != NULL)
 						{
-							case 0:
-								taxiWork();
-								break;
-							case -1:
-								TEST_ERROR
-								break;
-							default:
-								for(i = -SO_TAXI;i < taxiNumber;i++)
-								{
-									printf("%d/t", bornTaxi[SO_TAXI + i]);
-								}
-								printf("\n");
-								taxiNumber++;
-								continue;
+							printf("A taxi has died!\n");
+							if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
+							sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
+							strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
+							inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
+
+							bornTaxi = (int*) realloc(bornTaxi, (SO_TAXI + taxiNumber + 1) * sizeof(int));
+							switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
+							{
+								case 0:
+									taxiWork();
+									break;
+								case -1:
+									TEST_ERROR
+									break;
+								default:
+									for(i = -SO_TAXI;i < taxiNumber;i++)
+									{
+										printf("%d\t", bornTaxi[SO_TAXI + i]);
+									}
+									printf("\n");
+									taxiNumber++;
+									continue;
+							}
 						}
-					}
-					
-					printf("While cycle ends!\n");
+					}	
 					
 		      	}
 		    }
@@ -348,6 +350,7 @@ void cleanup(int signal)
 
 	while(fgets(messageFromTaxi, 100, fp) != NULL && !feof(fp))
 	{
+		if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 		sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 		printTaxi(bestTaxis[taxiNumber]);
 		printf("\n");
