@@ -135,7 +135,7 @@ void placeHoles(Grid* grid, int numberOfHoles)
   }
   if(stop==0 && numberOfHoles!=0)
   {
-    fprintf(stderr,"****ERROR LOOP IN placeHoles Restart TheGame.****\n");
+    fprintf(stderr,"**** ERROR LOOP in placeHoles Restart TheGame. ****\n");
     exit(EXIT_FAILURE);
   }
 }

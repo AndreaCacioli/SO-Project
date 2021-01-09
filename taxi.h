@@ -15,7 +15,6 @@ typedef struct taxi
   int TTD; /*Total Travelling Distance*/
   float TLT; /*Time of Longest Travel*/
   int totalTrips;
-  Boolean die;
   pid_t pid;
 }Taxi;
 

@@ -49,16 +49,15 @@ int SO_TIMENSEC_MAX;
 int SO_TIMEOUT;
 int SO_DURATION;
 
-void lettura_file();
-void setup();
-void cleanup(int signal);
-void signal_handler(int signal);
-void killAllChildren();
-void sourceTakePlace(Cell* myCell);
-void sourceSendMessage(Cell* myCell);
+void setup(); /* TheGame initialization */
+void lettura_file();/* reading from a Input.config file */
+void cleanup(int signal);/* cleaning: ipc objects, memory segments and termination of TheGame*/
+void killAllChildren(); /* termination of all child process */
+void signal_handler(int signal); /* HANDLING SIGNAL */
 void dieHandler(int signal);
-Cell semNumToCell(int num, Grid Mappa);
-void taxiWork();
+void sourceSendMessage(Cell* myCell); /* Source using this method for sending a msg */
+Cell semNumToCell(int num, Grid Mappa); /* from SemNum to Cell */
+void taxiWork(); /* lifecycle of taxi, but without termination because in managed by SIGURS1 for taxi*/
 
 Grid* MAPPA = NULL;
 Cell** sources;
@@ -107,9 +106,7 @@ int main(void)
 				if(close(fd[WriteEnd]) == -1 || close(fd[ReadEnd]) == -1)TEST_ERROR /*Sources don't use PIPE*/
 
 				myCell->taken = TRUE;
-			
-				
-
+			    
 				while(1)
 				{
 					sourceSendMessage(myCell);
@@ -194,7 +191,7 @@ int main(void)
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
 					
-					pollres.fd=fd[ReadEnd];
+					pollres.fd = fd[ReadEnd];
 					pollres.events = POLLIN;
 
 					if (poll(&pollres, 1, 0) == 1)
@@ -243,13 +240,19 @@ void setup()
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
 
-	if( SO_HOLES >= Max)
+	if( SO_HOLES >= Max )
 	{
-		printf("Error: Too many holes, rerun the program with less holes %d \n", Max);
+		printf("Error: Too many holes, retrun the program with less holes %d \n", Max);
 		exit(EXIT_FAILURE);
 	}
 
 	if( SO_HOLES > (SO_HEIGHT*SO_WIDTH/9)) printf("Warning: The program might crash due to the number of holes \n");
+	
+	if( SO_SOURCES+SO_HOLES > SO_HEIGHT*SO_WIDTH)
+	{
+		printf("Error: Too many sources, retrun the program with less sources %d \n",SO_SOURCES);
+		exit(EXIT_FAILURE);
+	}
 
 	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
 
@@ -257,10 +260,10 @@ void setup()
 	if((sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*)))== NULL) TEST_ERROR
 	if((messageFromTaxi = malloc(100)) == NULL) TEST_ERROR
 
+	MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
+
 	msgQId = msgget(ftok("./Input.config", 1), IPC_CREAT | IPC_EXCL | 0600); /*Creo la MSGQ*/
 	if (msgQId < 0) TEST_ERROR
-
-    MAPPA = generateMap(SO_HEIGHT,SO_WIDTH,SO_HOLES,SO_SOURCES,SO_CAP_MIN,SO_CAP_MAX,SO_TIMENSEC_MIN,SO_TIMENSEC_MAX);/*Creo la Mappa*/
 
   	semSetKey = initSem(MAPPA, FALSE); /*Creo e inizializzo un semaforo per ogni Cell*/
 	semMutexKey = initSem(MAPPA, TRUE);/*Creo e inizializzo un semaforo per ogni Cell per impedire ai taxi di scrivere male i crossings*/

@@ -8,7 +8,6 @@ typedef struct grid
   int height;
   int width;
   Cell** grid;
-
 }Grid;
 
 #endif
