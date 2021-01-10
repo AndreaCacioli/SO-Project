@@ -92,13 +92,13 @@ void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOU
   inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
   dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
    * 
    *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
   */
   inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
-  taxi->position = *newPosition;
   taxi->TTD++;
   alarm(0); 
 
@@ -108,7 +108,7 @@ void moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIME
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x+1][taxi->position.y]);
   
-   alarm(SO_TIMEOUT);
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
   dec_sem(semStartKey, 0);
@@ -120,17 +120,22 @@ void moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIME
   inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
   dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->position = *newPosition;
+  /*
+   *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
+   * 
+   *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
+  */
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->TTD++;
-  alarm(0); 
+  alarm(0);
 }
 void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y+1]);
   
-   alarm(SO_TIMEOUT);
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
   dec_sem(semStartKey, 0);
@@ -142,17 +147,22 @@ void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIM
   inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
   dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->position = *newPosition;
+  /*
+   *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
+   * 
+   *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
+  */
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->TTD++;
-  alarm(0); 
+  alarm(0);
 }
 void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y-1]);
 
-   alarm(SO_TIMEOUT);
+  alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
   dec_sem(semStartKey, 0);
@@ -164,16 +174,20 @@ void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIM
   inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
   dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->position = *newPosition;
+  /*
+   *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
+   * 
+   *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
+  */
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
   taxi->TTD++;
-  alarm(0); 
+  alarm(0);
 }
 
 
 
 int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,int semMutexKey) /*Returns 1 if taxi has arrived and 0 otherwise*/
-/*Implements Aldo's L rule*/
 {
   if(taxi->position.x == taxi->destination.x && taxi->position.y == taxi->destination.y)
   {
