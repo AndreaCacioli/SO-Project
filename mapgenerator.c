@@ -16,7 +16,7 @@
 #define TRUE !FALSE
 
 
-void printMap(Grid grid,int semKey,int semMutexKey,Boolean compact)
+void printMap(Grid grid,int semKey,Boolean compact)
 {
   size_t i,j;
 
@@ -25,7 +25,7 @@ void printMap(Grid grid,int semKey,int semMutexKey,Boolean compact)
   {
     for (j = 0; j < grid.width; j++)
     {
-      printCell(grid.grid[i][j], grid.grid[i][j].taxisOnCell, compact);
+      printCell(grid.grid[i][j], grid.grid[i][j].capacity - semctl(semKey, cellToSemNum(grid.grid[i][j], grid.width), GETVAL) , compact);
     }
     printf("\n");
   }
@@ -76,7 +76,6 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       else grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
       grid.grid[i][j].crossings = 0;
       grid.grid[i][j].taken = FALSE;
-      grid.grid[i][j].taxisOnCell = 0;
 
       if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
       if (verbose) printCell(grid.grid[i][j],0, FALSE); 

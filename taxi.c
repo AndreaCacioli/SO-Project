@@ -25,7 +25,7 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
-void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey, int semMutexKey)
+void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey)
 {
   int x,y;
   struct sigaction SigHandler;
@@ -46,9 +46,6 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
   taxi->TLT = 0;
   taxi->totalTrips = 0;
   taxi->pid = getpid();
-  dec_sem(semMutexKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width));
-  MAPPA->grid[x][y].taxisOnCell++;
-  inc_sem(semMutexKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width));
 
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;
@@ -78,115 +75,104 @@ void waitOnCell(Taxi* taxi)
   nanosleep(&waitTime,NULL);
 }
 
-void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
+void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
 {
+  Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
+  Cell* newPosition = &(mappa->grid[taxi->position.x-1][taxi->position.y]);
+  
   alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
-  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*relese control of the map*/
+  dec_sem(semStartKey, 0);
+  inc_sem(semStartKey, 0);
+  /*If I have come here it means master isn't printing*/
 
-  /*printf("[%d]:(%d,%d)->(%d, %d) UP \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x-1,taxi->position.y);*/
+  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  currentPosition->crossings++;
+  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x-1][taxi->position.y],mappa->width)); /*This might take a while*/
-
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].taxisOnCell--;/*Decremento della scorsa cella*/
-  mappa->grid[taxi->position.x-1][taxi->position.y].taxisOnCell++;/*Incremento della futura cella*/
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*take control of the map*/
-  
-  taxi->position = mappa->grid[taxi->position.x-1][taxi->position.y];
+  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  /*
+   *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
+   * 
+   *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
+  */
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  taxi->position = *newPosition;
   taxi->TTD++;
-  
+  alarm(0); 
+
 }
-void moveDown(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
+void moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEOUT,int semMutexKey)
 {
-  alarm(SO_TIMEOUT);
+  Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
+  Cell* newPosition = &(mappa->grid[taxi->position.x+1][taxi->position.y]);
+  
+   alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
-  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*relese control of the map*/
+  dec_sem(semStartKey, 0);
+  inc_sem(semStartKey, 0);
+  /*If I have come here it means master isn't printing*/
 
-  /*printf("[%d]:(%d,%d)->(%d, %d) UP \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x+1,taxi->position.y);*/
+  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  currentPosition->crossings++;
+  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x+1][taxi->position.y],mappa->width)); /*This might take a while*/
-  
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].taxisOnCell--;/*Decremento della scorsa cella*/
-  mappa->grid[taxi->position.x+1][taxi->position.y].taxisOnCell++;/*Incremento della futura cella*/
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*take control of the map*/
-  
-  taxi->position = mappa->grid[taxi->position.x+1][taxi->position.y];
+  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  taxi->position = *newPosition;
   taxi->TTD++;
+  alarm(0); 
 }
-void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
+void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
 {
-  alarm(SO_TIMEOUT);
+  Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
+  Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y+1]);
+  
+   alarm(SO_TIMEOUT);
   waitOnCell(taxi);
-  
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
-  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*relese control of the map*/
 
-  /*printf("[%d]:(%d,%d)->(%d, %d) UP \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y+1);*/
+  dec_sem(semStartKey, 0);
+  inc_sem(semStartKey, 0);
+  /*If I have come here it means master isn't printing*/
 
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y+1],mappa->width)); /*This might take a while*/
-  
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].taxisOnCell--;/*Decremento della scorsa cella*/
-  mappa->grid[taxi->position.x][taxi->position.y+1].taxisOnCell++;/*Incremento della futura cella*/
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*take control of the map*/
-  
-  taxi->position = mappa->grid[taxi->position.x][taxi->position.y+1];
+  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  currentPosition->crossings++;
+  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
+
+  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  taxi->position = *newPosition;
   taxi->TTD++;
+  alarm(0); 
 }
-void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int SO_TIMEOUT,int semMutexKey)
+void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIMEOUT,int semMutexKey)
 {
-  alarm(SO_TIMEOUT);
+  Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
+  Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y-1]);
+
+   alarm(SO_TIMEOUT);
   waitOnCell(taxi);
 
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].crossings++; /*Mutual exclusion of taxis writing in shared memory (CRITICAL SECTION)*/
-  inc_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*relese control of the map*/
+  dec_sem(semStartKey, 0);
+  inc_sem(semStartKey, 0);
+  /*If I have come here it means master isn't printing*/
 
-  /*printf("[%d]:(%d,%d)->(%d, %d) UP \n",getpid(),taxi->position.x,taxi->position.y,taxi->position.x,taxi->position.y-1);*/
+  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  currentPosition->crossings++;
+  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
 
-  dec_sem(semSetKey,cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y-1],mappa->width)); /*This might take a while*/
-  
-  /*take control of the map*/
-  dec_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  mappa->grid[taxi->position.x][taxi->position.y].taxisOnCell--;/*Decremento della scorsa cella*/
-  mappa->grid[taxi->position.x][taxi->position.y-1].taxisOnCell++;/*Incremento della futura cella*/
-  inc_sem(semMutexKey, cellToSemNum(mappa->grid[taxi->position.x][taxi->position.y],mappa->width));
-  /*take control of the map*/
-  
-  taxi->position = mappa->grid[taxi->position.x][taxi->position.y-1];
+  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  taxi->position = *newPosition;
   taxi->TTD++;
+  alarm(0); 
 }
 
 
 
-int move (Taxi* taxi, Grid* mappa, int semSetKey,int SO_TIMEOUT,int semMutexKey) /*Returns 1 if taxi has arrived and 0 otherwise*/
+int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,int semMutexKey) /*Returns 1 if taxi has arrived and 0 otherwise*/
 /*Implements Aldo's L rule*/
 {
   if(taxi->position.x == taxi->destination.x && taxi->position.y == taxi->destination.y)
@@ -201,18 +187,18 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int SO_TIMEOUT,int semMutexKey)
       /*Sotto c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
-        moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveRight(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
       }
       else
       {
-        moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
       }
     }
-    else moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+    else moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
   }
 
   else if(taxi->position.x - taxi->destination.x > 0)/*Upwnward direction*/
@@ -222,18 +208,18 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int SO_TIMEOUT,int semMutexKey)
       /*Sopra c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
-        moveRight(taxi, mappa,semSetKey, SO_TIMEOUT, semMutexKey);
-        moveUp(taxi, mappa,semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveRight(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        moveUp(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
       }
       else
       {
-        moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
       }
     }
-    else moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+    else moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
   }
 
   else if(taxi->position.y - taxi->destination.y < 0)/*Right direction*/
@@ -242,18 +228,18 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int SO_TIMEOUT,int semMutexKey)
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
       }
       else
       {
-        moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
       }
     }
-    else moveRight(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+    else moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
   }
   else if(taxi->position.y - taxi->destination.y > 0)/*Left direction*/
   {
@@ -261,18 +247,18 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int SO_TIMEOUT,int semMutexKey)
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
       }
       else
       {
-        moveUp(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
       }
     }
-    else moveLeft(taxi, mappa, semSetKey, SO_TIMEOUT, semMutexKey);
+    else moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
   }
   return 0;
 }
@@ -310,7 +296,7 @@ void findNearestSource(Taxi* taxi, Cell** sources, int entries)
 }
 
 
-void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int SO_TIMEOUT)
+void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int semStartKey, int Busy, int SO_TIMEOUT)
 {
   struct timespec startingTime, arrivalTime;
   float seconds = 0;
@@ -318,7 +304,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
 
   if(Busy==TRUE){ /* counting TLT */
     clock_gettime(CLOCK_REALTIME, &startingTime);
-    while(move(t,MAPPA,semSetKey,SO_TIMEOUT,semMutexKey) == 0);
+    while(move(t,MAPPA,semSetKey,semStartKey, SO_TIMEOUT,semMutexKey) == 0);
     clock_gettime(CLOCK_REALTIME, &arrivalTime);
 
     nanos = arrivalTime.tv_nsec - startingTime.tv_nsec; 
@@ -330,7 +316,7 @@ void moveTo(Taxi* t, Grid* MAPPA,int semSetKey, int semMutexKey, int Busy, int S
     t -> totalTrips++;
   }
   else
-      while(move(t,MAPPA,semSetKey,SO_TIMEOUT,semMutexKey) == 0);
+      while(move(t,MAPPA,semSetKey,semStartKey, SO_TIMEOUT,semMutexKey) == 0);
 
 }
 
@@ -382,14 +368,11 @@ void inc_sem(int sem_id, int index)
 void taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id, int semMutexKey)
 {
   char* message = malloc(500);
+  alarm(0);
   inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);
   free(message);
   close(fdWrite);
-
-  dec_sem(semMutexKey, cellToSemNum(taxi.position, grid.width));
-  grid.grid[taxi.position.x][taxi.position.y].taxisOnCell--;
-  inc_sem(semMutexKey, cellToSemNum(taxi.position, grid.width));
   exit(EXIT_SUCCESS);
 }

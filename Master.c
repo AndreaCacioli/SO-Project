@@ -18,8 +18,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 5
-#define SO_WIDTH 5
+#define SO_HEIGHT 10
+#define SO_WIDTH 3
 #define MSGLEN 500
 #define ReadEnd 0
 #define WriteEnd 1
@@ -65,7 +65,7 @@ Taxi* bestTaxis;
 Taxi taxi;
 pid_t* pid_sources;
 int fd[2];
-int semSetKey = 0;		/*TODO Remove in case of error*/
+int semSetKey = 0;
 int semMutexKey = 0;
 int semStartKey = 0;
 int msgQId = 0;
@@ -85,9 +85,8 @@ int main(void)
     pid_t pid;
     int i = 0;
 
-	printf("Creating Map!\n");
+	
     setup();
-	printf("Map has been created!\n");
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
@@ -177,8 +176,6 @@ int main(void)
     			sem_op.sem_flg = 0;
     			semop(semStartKey, &sem_op, 1);
 
-				printMap(*MAPPA, semSetKey, semMutexKey, TRUE);
-
 			  	alarm(SO_DURATION);
 
 				clock_gettime(CLOCK_REALTIME, &lastPrintTime);
@@ -192,7 +189,7 @@ int main(void)
     					sem_op.sem_flg = 0;
     					semop(semStartKey, &sem_op, 1);
 
-						printMap(*MAPPA, semSetKey, semMutexKey, TRUE);
+						printMap(*MAPPA, semSetKey, semMutexKey, FALSE);
 
 						sem_op.sem_num  = 0;
     					sem_op.sem_op   = SO_TAXI;
@@ -307,7 +304,7 @@ void signal_handler(int signal){
             cleanup(signal);
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
-			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semMutexKey);
+			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
             break;
     }
 }
@@ -525,7 +522,7 @@ void taxiWork()
 	int nextDestX, nextDestY;
 	close(fd[ReadEnd]); /*Closing Read End*/
 
-	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey, semMutexKey); /*We initialize the taxi structure*/
+	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
 
 	findNearestSource(&taxi, sources, SO_SOURCES);
 
@@ -537,7 +534,7 @@ void taxiWork()
 		nextDestY = 0;
 		findNearestSource(&taxi, sources, SO_SOURCES);
 		/*printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);*/
-		moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,taxi.busy,SO_TIMEOUT);
+		moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,semStartKey,taxi.busy,SO_TIMEOUT);
 		if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 		{
 			continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
@@ -546,7 +543,7 @@ void taxiWork()
 		/*printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);*/
 		setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
 		taxi.busy=TRUE;
-		moveTo(&taxi, MAPPA,semSetKey,semMutexKey,taxi.busy,SO_TIMEOUT);
+		moveTo(&taxi, MAPPA,semSetKey,semMutexKey,semStartKey,taxi.busy,SO_TIMEOUT);
 		taxi.busy=FALSE;
 	}
 }
