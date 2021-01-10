@@ -13,6 +13,7 @@ typedef struct cell
   Boolean source;
   Boolean taken;
   int crossings;
+  int taxisOnCell;
 
 }Cell;
 

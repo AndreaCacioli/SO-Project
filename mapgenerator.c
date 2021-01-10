@@ -19,17 +19,13 @@
 void printMap(Grid grid,int semKey,int semMutexKey,Boolean compact)
 {
   size_t i,j;
-  int ntaxi = 0,valsem = 0;
 
   printf("Printing the GRID:\n");
   for (i = 0; i < grid.height; i++)
   {
     for (j = 0; j < grid.width; j++)
     {
-      valsem = semctl(semKey, cellToSemNum(grid.grid[i][j],grid.width), GETVAL);
-      ntaxi = grid.grid[i][j].capacity - valsem;  
-      /*printf("numero taxi su cella (%d, %d) = %d", i, j, ntaxi);*/
-      printCell(grid.grid[i][j], ntaxi, compact);
+      printCell(grid.grid[i][j], grid.grid[i][j].taxisOnCell, compact);
     }
     printf("\n");
   }
@@ -80,6 +76,7 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
       else grid.grid[i][j].delay = (rand() % (maxDelay-minDelay)) + minDelay;
       grid.grid[i][j].crossings = 0;
       grid.grid[i][j].taken = FALSE;
+      grid.grid[i][j].taxisOnCell = 0;
 
       if (verbose) printf("Allocated (%d,%d) cell:\n",i,j);
       if (verbose) printCell(grid.grid[i][j],0, FALSE); 

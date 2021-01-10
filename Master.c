@@ -173,7 +173,7 @@ int main(void)
 				 *	Informing taxis they can start!
 				 */
     			sem_op.sem_num  = 0;
-    			sem_op.sem_op   = SO_TAXI;
+    			sem_op.sem_op   = SO_TAXI * 2;
     			sem_op.sem_flg = 0;
     			semop(semStartKey, &sem_op, 1);
 
@@ -187,7 +187,18 @@ int main(void)
 					clock_gettime(CLOCK_REALTIME, &currentTime);
 					if(currentTime.tv_sec - lastPrintTime.tv_sec >= 1)
 					{
+						sem_op.sem_num  = 0;
+    					sem_op.sem_op   = -SO_TAXI;
+    					sem_op.sem_flg = 0;
+    					semop(semStartKey, &sem_op, 1);
+
 						printMap(*MAPPA, semSetKey, semMutexKey, TRUE);
+
+						sem_op.sem_num  = 0;
+    					sem_op.sem_op   = SO_TAXI;
+    					sem_op.sem_flg = 0;
+    					semop(semStartKey, &sem_op, 1);
+
 						clock_gettime(CLOCK_REALTIME, &lastPrintTime);
 					}
 					
@@ -200,7 +211,6 @@ int main(void)
 						/* data available */
 						if(!feof(fp) && fgets(messageFromTaxi, 100, fp) != NULL)
 						{
-							printf("A taxi has died!\n");
 							if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 							sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 							strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
@@ -216,11 +226,6 @@ int main(void)
 									TEST_ERROR
 									break;
 								default:
-									for(i = -SO_TAXI;i < taxiNumber;i++)
-									{
-										printf("%d\t", bornTaxi[SO_TAXI + i]);
-									}
-									printf("\n");
 									taxiNumber++;
 									continue;
 							}
@@ -302,7 +307,7 @@ void signal_handler(int signal){
             cleanup(signal);
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
-			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey);
+			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semMutexKey);
             break;
     }
 }
@@ -520,7 +525,7 @@ void taxiWork()
 	int nextDestX, nextDestY;
 	close(fd[ReadEnd]); /*Closing Read End*/
 
-	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
+	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey, semMutexKey); /*We initialize the taxi structure*/
 
 	findNearestSource(&taxi, sources, SO_SOURCES);
 
