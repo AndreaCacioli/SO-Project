@@ -29,9 +29,7 @@ void printMap(Grid grid,int semKey,int semMutexKey,Boolean compact)
       valsem = semctl(semKey, cellToSemNum(grid.grid[i][j],grid.width), GETVAL);
       ntaxi = grid.grid[i][j].capacity - valsem;  
       /*printf("numero taxi su cella (%d, %d) = %d", i, j, ntaxi);*/
-      dec_sem(semMutexKey, cellToSemNum(grid.grid[i][j],grid.width)); /*TODO Maybe we should use one sem for the whole map*/
       printCell(grid.grid[i][j], ntaxi, compact);
-      inc_sem(semMutexKey, cellToSemNum(grid.grid[i][j],grid.width));
     }
     printf("\n");
   }
@@ -53,18 +51,18 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
   shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height, IPC_CREAT | 0644);
   if (verbose) printf("Finding %lu bytes the array of Cell*, found at place %d\n",sizeof(Cell) * height,shmID);
   grid.grid = (Cell**)shmat(shmID, NULL, 0);
-  shmctl(shmID, IPC_RMID, NULL);  /* market di disallocazione della griglia */
+  shmctl(shmID, IPC_RMID, NULL);  /* delete after use */
   if (verbose) printf("The grid of the grid has been allocated successfully =D\n");
 
   shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height * width, IPC_CREAT | 0644);
   if (verbose) printf("Finding %lu bytes the big Array, found at place %d\n",sizeof(Cell) * height * width,shmID);
   grid.grid[0] = (Cell*)shmat(shmID, NULL, 0);
-  shmctl(shmID, IPC_RMID, NULL);  /* market di disallocazione della griglia */
+  shmctl(shmID, IPC_RMID, NULL);  /* delete after use  */
   if (verbose) printf("The grid of the grid has been allocated successfully =D\nIndexing Now!\n");
 
   for(i = 0; i < height; i++)
   {
-    grid.grid[i] = *grid.grid + (i * width); /*Parte cruciale*/
+    grid.grid[i] = *grid.grid + (i * width);
   }
 
   for(i = 0; i < height; i++)
