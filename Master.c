@@ -385,7 +385,6 @@ void cleanup(int signal)
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semStartKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
-  	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printTopCells(SO_TOP_CELLS);
 	
 
@@ -402,6 +401,7 @@ void cleanup(int signal)
 	{
 		printf("► %s Created by source (%d, %d)\n", msgQ.mtext, semNumToCell( msgQ.mtype - 1, *MAPPA).x,semNumToCell( msgQ.mtype - 1, *MAPPA).y);
 	}
+	if(msgctl(msgQId, IPC_RMID, NULL) == -1) TEST_ERROR /* rm msg */
 	printf("\n");
 	printf("\n\nAborted requests:\n");
 	for(i = 0; i <= taxiNumber; i++)
