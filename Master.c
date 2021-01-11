@@ -18,7 +18,7 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 10
+#define SO_HEIGHT 3
 #define SO_WIDTH 3
 #define MSGLEN 500
 #define ReadEnd 0
@@ -316,7 +316,7 @@ void signal_handler(int signal){
 		case SIGUSR1:  /*Only taxi handles this signal*/
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
             break;
-		case SIGUSR2:  
+		case SIGUSR2:  /* linux signal is 12 */
 			SIGsendMSG(); /* sending a msg with SIGUSR2 */
 			break;
     }
@@ -331,6 +331,14 @@ void SIGsendMSG(){ /* sending a msg with SIGUSR2 */
 	printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
 
 	scanf("%ld %s %s",&msgQ.mtype,x,y);
+	if(msgQ.mtype>SO_WIDTH*SO_HEIGHT){ /* check if cell exist */
+		do{
+			printf("Error: cell doesn't exist\n");
+	        printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
+			scanf("%ld %s %s",&msgQ.mtype,x,y);
+		}
+		while(msgQ.mtype>SO_WIDTH*SO_HEIGHT);
+	}
 	printf("Done reading:\nx:%s\ny:%s\nType:%ld\n", x, y, msgQ.mtype);
 	x = strcat(x," ");
 	x = strcat(x,y);

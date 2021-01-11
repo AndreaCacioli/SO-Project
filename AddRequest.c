@@ -5,6 +5,8 @@
 #include <string.h>
 #include <sys/msg.h>
 #include <sys/errno.h>
+#define SO_HEIGHT 3
+#define SO_WIDTH 3
 #define MSGLEN 500
 
 #define TEST_ERROR if (errno) {fprintf(stderr,		\
@@ -38,6 +40,14 @@ int main(void)
   printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
 
   scanf("%ld %s %s",&msgQ.mtype,x,y);
+  if(msgQ.mtype>SO_WIDTH*SO_HEIGHT){
+		do{
+			printf("Error: cell doesn't exist\n");
+	        printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
+			scanf("%ld %s %s",&msgQ.mtype,x,y);
+		}
+		while(msgQ.mtype>SO_WIDTH*SO_HEIGHT);
+	}
   printf("Done reading:\nx:%s\ny:%s\nType:%ld\n", x, y, msgQ.mtype);
   x = strcat(x," ");
   x = strcat(x,y);
