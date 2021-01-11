@@ -244,7 +244,7 @@ void setup()
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
 
-	if(SO_TAXI<= 0 || SO_SOURCES <= 0 || SO_HOLES < 0 || SO_TOP_CELLS < 0 || SO_CAP_MIN < 0 ||\
+	if(SO_TAXI<= 0 || SO_SOURCES <= 1 || SO_HOLES < 0 || SO_TOP_CELLS < 0 || SO_CAP_MIN < 0 ||\
        SO_CAP_MAX <= 0 || SO_TIMENSEC_MIN < 0 || SO_TIMENSEC_MAX <= 0 || SO_TIMEOUT <= 0 ||\
 	   SO_DURATION <= 0){
 		

@@ -23,6 +23,7 @@ clean:
 	rm -f *.o mapgenerator*~
 	rm -f *.o cell*~
 	rm -f *.o Master*~
+	rm -f *.o AddRequest*~
 	rm -f *.o TheGame*~
 
 run:  TheGame

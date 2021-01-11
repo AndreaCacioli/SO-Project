@@ -7,7 +7,7 @@ void printCell(Cell c, int numtaxi, Boolean compact)
   {
     if(numtaxi > 0)
     {
-        printf("\t[%s%d]\t", c.source ? " S T " : " T ",numtaxi);
+        printf("\t[%s%d]\t", c.source ? " ST " : " T ",numtaxi);
         /*printf("[%s%d]\t", c.source ? " S " : " T ",numtaxi); no 'T' on source*/
 
     }
