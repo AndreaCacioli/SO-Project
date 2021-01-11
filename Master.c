@@ -58,6 +58,7 @@ void dieHandler(int signal);
 void sourceSendMessage(Cell* myCell); /* Source using this method for sending a msg */
 Cell semNumToCell(int num, Grid Mappa); /* from SemNum to Cell */
 void taxiWork(); /* lifecycle of taxi, but without termination because in managed by SIGURS1 for taxi*/
+void SIGsendMSG();
 
 Grid* MAPPA = NULL;
 Cell** sources;
@@ -160,6 +161,7 @@ int main(void)
 				SigHandler.sa_handler = signal_handler;
 				if(sigaction(SIGINT, &SigHandler, NULL) == -1) TEST_ERROR
 				if(sigaction(SIGALRM, &SigHandler, NULL) == -1) TEST_ERROR
+				if(sigaction(SIGUSR2, &SigHandler, NULL) == -1) TEST_ERROR
 
 				for(i = 5; i > 0; i--)/*Cool countdown to build up pressure!*/
 				{
@@ -242,6 +244,14 @@ void setup()
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
   lettura_file();
 
+	if(SO_TAXI<= 0 || SO_SOURCES <= 0 || SO_HOLES < 0 || SO_TOP_CELLS < 0 || SO_CAP_MIN < 0 ||\
+       SO_CAP_MAX <= 0 || SO_TIMENSEC_MIN < 0 || SO_TIMENSEC_MAX <= 0 || SO_TIMEOUT <= 0 ||\
+	   SO_DURATION <= 0){
+		
+		printf("Error: in Parameters, check every parameter and set a possible value\n"); /* parameters check */
+		exit(EXIT_FAILURE);
+
+	   }
 	if( SO_HOLES >= Max )
 	{
 		printf("Error: Too many holes, retrun the program with less holes %d \n", Max);
@@ -306,7 +316,30 @@ void signal_handler(int signal){
 		case SIGUSR1:  /*Only taxi handles this signal*/
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
             break;
+		case SIGUSR2:  
+			SIGsendMSG(); /* sending a msg with SIGUSR2 */
+			break;
     }
+}
+
+void SIGsendMSG(){ /* sending a msg with SIGUSR2 */
+	char* x;
+	char* y;
+	x = malloc(128);
+	y = malloc(128);
+	printf("Insert a Request: [Format: NumberOfSourceCell x y]\n");
+	printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
+
+	scanf("%ld %s %s",&msgQ.mtype,x,y);
+	printf("Done reading:\nx:%s\ny:%s\nType:%ld\n", x, y, msgQ.mtype);
+	x = strcat(x," ");
+	x = strcat(x,y);
+	x = strcat(x," ");
+	strcpy(msgQ.mtext, x);
+	printf("Sending a message of type: %ld\nMessage: %s\n",msgQ.mtype,msgQ.mtext);
+	if(msgsnd(msgQId, &msgQ, strlen(msgQ.mtext), 0) < 0) TEST_ERROR
+	free(x);
+	free(y);
 }
 
 int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort*/
