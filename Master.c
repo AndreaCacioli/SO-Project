@@ -49,10 +49,10 @@ int SO_TIMENSEC_MAX;
 int SO_TIMEOUT;
 int SO_DURATION;
 
-void setup(); /* TheGame initialization */
-void lettura_file();/* reading from a Input.config file */
+int setup(); /* TheGame initialization */
+int lettura_file();/* reading from a Input.config file */
+int killAllChildren(); /* termination of all child process */
 void cleanup(int signal);/* cleaning: ipc objects, memory segments and termination of TheGame*/
-void killAllChildren(); /* termination of all child process */
 void signal_handler(int signal); /* HANDLING SIGNAL */
 void dieHandler(int signal);
 void sourceSendMessage(Cell* myCell); /* Source using this method for sending a msg */
@@ -87,7 +87,7 @@ int main(void)
     int i = 0;
 
 	
-    setup();
+    if(setup()==-1)printf("Error: error in setup\n");
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
@@ -131,7 +131,7 @@ int main(void)
 		{
     	case -1:
     	{
-    		TEST_ERROR;
+    		    TEST_ERROR;
 				exit(EXIT_FAILURE);
     	}
     	case 0:
@@ -237,21 +237,21 @@ int main(void)
 		  	exit(EXIT_SUCCESS);
 }
 
-void setup()
+int setup()
 {
   int i = 0,j = 0, k=0;
   int outcome = 0;
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
-  lettura_file();
+  if(lettura_file()==-1)printf("Error: error in lettura_file\n");
 
 	if(SO_TAXI<= 0 || SO_SOURCES <= 1 || SO_HOLES < 0 || SO_TOP_CELLS < 0 || SO_CAP_MIN < 0 ||\
        SO_CAP_MAX <= 0 || SO_TIMENSEC_MIN < 0 || SO_TIMENSEC_MAX <= 0 || SO_TIMEOUT <= 0 ||\
-	   SO_DURATION <= 0){
-		
+	   SO_DURATION <= 0)
+	{
 		printf("Error: in Parameters, check every parameter and set a possible value\n"); /* parameters check */
 		exit(EXIT_FAILURE);
+	}
 
-	   }
 	if( SO_HOLES >= Max )
 	{
 		printf("Error: Too many holes, retrun the program with less holes %d \n", Max);
@@ -266,7 +266,7 @@ void setup()
 		exit(EXIT_FAILURE);
 	}
 
-	pid_sources = calloc(sizeof(pid_t), SO_SOURCES);
+	if((pid_sources = calloc(sizeof(pid_t), SO_SOURCES))==NULL) TEST_ERROR
 
 	
 	if((sources = (Cell**)calloc(SO_SOURCES, sizeof(Cell*)))== NULL) TEST_ERROR
@@ -303,6 +303,7 @@ void setup()
     }
     /*printf("\n");*/
   }
+  return 1;
 }
 
 void signal_handler(int signal){
@@ -317,7 +318,7 @@ void signal_handler(int signal){
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
             break;
 		case SIGUSR2:  /* linux signal is 12 */
-			SIGsendMSG(); /* sending a msg with SIGUSR2 */
+			SIGsendMSG() /* sending a msg with SIGUSR2 */
 			break;
     }
 }
@@ -388,7 +389,7 @@ void cleanup(int signal)
 	int i = 0, successfulTotalTrips = 0;
 	if(signal==14) printf("\n***TIME IS OVER***\n");
 	close(fd[WriteEnd]);
-	killAllChildren();
+	if(killAllChildren()==-1)printf("Error: error in killAllChildern\n");
 	
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
@@ -438,7 +439,7 @@ void cleanup(int signal)
   	exit(EXIT_SUCCESS);
 }
 
-void lettura_file(){
+int lettura_file(){
   FILE* configFile;
   char* path = "./Input.config";
   char string[20];
@@ -483,6 +484,8 @@ void lettura_file(){
   	    printf("%s it's not a parameter inside configFile\n",string);
   }
   fclose(configFile);
+
+  return 1;
 }
 
 Boolean contains(int* array, int pid, int size)
@@ -496,7 +499,7 @@ Boolean contains(int* array, int pid, int size)
 }
 
 
-void killAllChildren()
+int killAllChildren()
 {
 	int parent = 0, child = 0;
 	FILE* out = popen("ps -A -o ppid= -o pid=", "r");
@@ -519,6 +522,7 @@ void killAllChildren()
 		}
 	}
 	pclose(out);
+  return 1;
 }
 
 void sourceSendMessage(Cell* myCell)
