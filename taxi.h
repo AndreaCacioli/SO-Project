@@ -24,7 +24,7 @@ extern int move (Taxi* taxi,Grid* mappa,int semSetKey,int semStartKey,int SO_TIM
 extern void setDestination(Taxi* taxi, Cell c);
 extern int initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey);
 extern void findNearestSource(Taxi* taxi, Cell** sources, int entries);
-extern void moveTo(Taxi* taxi, Grid* MAPPA,int semSetKey,int semMutexKey,int semStartKey, int Busy,int SO_TIMEOUT);
+extern int moveTo(Taxi* taxi, Grid* MAPPA,int semSetKey,int semMutexKey,int semStartKey, int Busy,int SO_TIMEOUT);
 extern int dec_sem (int sem_id, int index);
 extern int inc_sem(int sem_id, int index);
 extern int taxiDie(Taxi t, int fdWrite, Grid grid, int sem_id, int semStartKey);

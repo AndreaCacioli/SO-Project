@@ -212,7 +212,7 @@ int main(void)
 							if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 							sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 							strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
-							inc_sem(semStartKey, 0); /*So that new taxi can immediately start*/
+							if((inc_sem(semStartKey, 0))==-1)TEST_ERROR /*So that new taxi can immediately start*/
 
 							bornTaxi = (int*) realloc(bornTaxi, (SO_TAXI + taxiNumber + 1) * sizeof(int));
 							switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
@@ -567,7 +567,7 @@ void taxiWork()
 
 	findNearestSource(&taxi, sources, SO_SOURCES);
 
-	dec_sem(semStartKey, 0);
+	if((dec_sem(semStartKey, 0))==-1)TEST_ERROR
 
 	while(1) /*Gets out when receives signal SIGUSR1*/
 	{
@@ -575,7 +575,7 @@ void taxiWork()
 		nextDestY = 0;
 		findNearestSource(&taxi, sources, SO_SOURCES);
 		/*printf("[%d]Going to Source: %d %d\n",getpid(),taxi.destination.x, taxi.destination.y);*/
-		moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,semStartKey,taxi.busy,SO_TIMEOUT);
+		if((moveTo(&taxi, MAPPA,semSetKey,semMutexKey ,semStartKey,taxi.busy,SO_TIMEOUT))==-1) TEST_ERROR
 		if(msgrcv(msgQId, &msgQ,MSGLEN,cellToSemNum(taxi.position, MAPPA->width)+1,IPC_NOWAIT) < 0)
 		{
 			continue; /*Not handling Error cause it is possible for a queue to not have any request!*/
@@ -584,7 +584,7 @@ void taxiWork()
 		/*printf("[%d]New dest from msgQ (%d,%d)\n",getpid(),nextDestX,nextDestY);*/
 		setDestination(&taxi,MAPPA->grid[nextDestX][nextDestY]);
 		taxi.busy=TRUE;
-		moveTo(&taxi, MAPPA,semSetKey,semMutexKey,semStartKey,taxi.busy,SO_TIMEOUT);
+		if((moveTo(&taxi, MAPPA,semSetKey,semMutexKey,semStartKey,taxi.busy,SO_TIMEOUT))==-1) TEST_ERROR
 		taxi.busy=FALSE;
 	}
 }
