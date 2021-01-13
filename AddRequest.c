@@ -31,8 +31,8 @@ int main(void)
   int msgQId = 0;
   char* x;
   char* y;
-  x = malloc(128);
-  y = malloc(128);
+  if((x = malloc(128))==NULL)TEST_ERROR
+  if((y = malloc(128))==NULL)TEST_ERROR
   msgQId = msgget(ftok("./Input.config", 1),0600);
   if (msgQId == -1) TEST_ERROR
 
