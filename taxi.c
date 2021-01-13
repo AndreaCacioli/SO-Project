@@ -131,6 +131,8 @@ int moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT
     fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
     return -1;
   }
+  alarm(0); 
+
 
   taxi->position = *newPosition;
   /*
@@ -144,7 +146,6 @@ int moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT
   }
 
   taxi->TTD++;
-  alarm(0); 
   return 0;
 }
 int moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEOUT,int semMutexKey)
@@ -182,6 +183,7 @@ int moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEO
     fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
     return -1;
   }
+  alarm(0);
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
@@ -193,7 +195,6 @@ int moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEO
     return -1;
   }
   taxi->TTD++;
-  alarm(0);
   return 0;
 }
 int moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
@@ -234,7 +235,7 @@ int moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIME
     fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
     return -1;
   }
-
+  alarm(0);
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
@@ -246,7 +247,6 @@ int moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIME
     return -1;
   }
   taxi->TTD++;
-  alarm(0);
   return 0;
 }
 int moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIMEOUT,int semMutexKey)
@@ -285,6 +285,7 @@ int moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIME
     fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
     return -1;
   }
+  alarm(0);
 
   taxi->position = *newPosition;
   /*
@@ -297,7 +298,6 @@ int moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIME
     return -1;
   }
   taxi->TTD++;
-  alarm(0);
   return 0;
 }
 
@@ -314,8 +314,8 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
   {
     if(!mappa->grid[taxi->position.x+1][taxi->position.y].available)
     {
-      /*Sotto c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
+      
+      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)
       {
           if((moveRight(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
             fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
@@ -369,8 +369,8 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
   {
     if(!mappa->grid[taxi->position.x-1][taxi->position.y].available)
     {
-      /*Sopra c'é un buco!!!*/
-      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
+      
+      if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)
       {
         if((moveRight(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
           fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
@@ -424,7 +424,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y+1].available)
     {
-      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)
       {
         if((moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
           fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
@@ -477,7 +477,7 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
   {
     if(!mappa->grid[taxi->position.x][taxi->position.y-1].available)
     {
-      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
+      if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)
       {
         if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
           fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));

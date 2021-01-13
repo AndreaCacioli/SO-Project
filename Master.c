@@ -18,8 +18,8 @@
 #include "mapgenerator.h"
 #define FALSE 0
 #define TRUE !FALSE
-#define SO_HEIGHT 3
-#define SO_WIDTH 3
+#define SO_HEIGHT 4
+#define SO_WIDTH 4
 #define MSGLEN 500
 #define ReadEnd 0
 #define WriteEnd 1
@@ -209,6 +209,7 @@ int main(void)
 						/* data available */
 						if(!feof(fp) && fgets(messageFromTaxi, 100, fp) != NULL)
 						{
+							printf("A taxi has died!\n");
 							if((bestTaxis = (Taxi*) realloc(bestTaxis, (taxiNumber + 1) * sizeof(Taxi))) == NULL) TEST_ERROR
 							sscanf(messageFromTaxi, "%d %d %d %d %d %d %d %f %d", &bestTaxis[taxiNumber].pid, &bestTaxis[taxiNumber].position.x, &bestTaxis[taxiNumber].position.y, &bestTaxis[taxiNumber].destination.x, &bestTaxis[taxiNumber].destination.y, &bestTaxis[taxiNumber].busy, &bestTaxis[taxiNumber].TTD, &bestTaxis[taxiNumber].TLT, &bestTaxis[taxiNumber].totalTrips); /*Storing all information sent from Taxi process*/
 							strcpy(messageFromTaxi, ""); /*Using strcpy otherwise we lose malloc*/
@@ -218,6 +219,7 @@ int main(void)
 							switch (bornTaxi[SO_TAXI + taxiNumber] = fork())
 							{
 								case 0:
+									printf("A taxi has been respawned!\n");
 									taxiWork();
 									break;
 								case -1:
@@ -425,6 +427,15 @@ void cleanup(int signal)
 	}
 	printf("\n\nTotal Completed Trips:\n\t%d\n", successfulTotalTrips);
 
+/*
+	printf("Here's a list of All the taxis that participated in the program:\n");
+	for(i = 0; i < taxiNumber; i++)
+	{
+		printTaxi(bestTaxis[i]);
+	}
+	printf("\n\n");
+	
+*/
 	
 	compareTaxi(bestTaxis,taxiNumber);
 	fclose(fp);
@@ -568,6 +579,8 @@ void taxiWork()
 	findNearestSource(&taxi, sources, SO_SOURCES);
 
 	if((dec_sem(semStartKey, 0))==-1)TEST_ERROR
+
+	printf("Taxi starting!\n");
 
 	while(1) /*Gets out when receives signal SIGUSR1*/
 	{
