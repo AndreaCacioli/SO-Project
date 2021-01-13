@@ -49,9 +49,9 @@ int SO_TIMENSEC_MAX;
 int SO_TIMEOUT;
 int SO_DURATION;
 
-int setup(); /* TheGame initialization */
-int lettura_file();/* reading from a Input.config file */
-int killAllChildren(); /* termination of all child process */
+void setup(); /* TheGame initialization */
+void lettura_file();/* reading from a Input.config file */
+void killAllChildren(); /* termination of all child process */
 void cleanup(int signal);/* cleaning: ipc objects, memory segments and termination of TheGame*/
 void signal_handler(int signal); /* HANDLING SIGNAL */
 void dieHandler(int signal);
@@ -86,8 +86,7 @@ int main(void)
     pid_t pid;
     int i = 0;
 
-	
-    if(setup()==-1)printf("Error: error in setup\n");
+    setup();
 	
 	for(i = 0 ; i < SO_SOURCES; i++)                     /*SOURCES*/
     {
@@ -237,12 +236,12 @@ int main(void)
 		  	exit(EXIT_SUCCESS);
 }
 
-int setup()
+void setup()
 {
   int i = 0,j = 0, k=0;
   int outcome = 0;
   int Max = (int)pow(ceil(((int)floor(sqrt(SO_HEIGHT * SO_WIDTH)))/2.0) ,2);
-  if(lettura_file()==-1)printf("Error: error in lettura_file\n");
+  lettura_file();
 
 	if(SO_TAXI<= 0 || SO_SOURCES <= 1 || SO_HOLES < 0 || SO_TOP_CELLS < 0 || SO_CAP_MIN < 0 ||\
        SO_CAP_MAX <= 0 || SO_TIMENSEC_MIN < 0 || SO_TIMENSEC_MAX <= 0 || SO_TIMEOUT <= 0 ||\
@@ -303,7 +302,6 @@ int setup()
     }
     /*printf("\n");*/
   }
-  return 1;
 }
 
 void signal_handler(int signal){
@@ -318,7 +316,7 @@ void signal_handler(int signal){
 			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
             break;
 		case SIGUSR2:  /* linux signal is 12 */
-			SIGsendMSG() /* sending a msg with SIGUSR2 */
+			SIGsendMSG(); /* sending a msg with SIGUSR2 */
 			break;
     }
 }
@@ -389,7 +387,7 @@ void cleanup(int signal)
 	int i = 0, successfulTotalTrips = 0;
 	if(signal==14) printf("\n***TIME IS OVER***\n");
 	close(fd[WriteEnd]);
-	if(killAllChildren()==-1)printf("Error: error in killAllChildern\n");
+	killAllChildren();
 	
   	if(semctl(semSetKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
 	if(semctl(semMutexKey,0,IPC_RMID) == -1) TEST_ERROR /* rm sem */
@@ -439,7 +437,7 @@ void cleanup(int signal)
   	exit(EXIT_SUCCESS);
 }
 
-int lettura_file(){
+void lettura_file(){
   FILE* configFile;
   char* path = "./Input.config";
   char string[20];
@@ -484,8 +482,6 @@ int lettura_file(){
   	    printf("%s it's not a parameter inside configFile\n",string);
   }
   fclose(configFile);
-
-  return 1;
 }
 
 Boolean contains(int* array, int pid, int size)
@@ -499,7 +495,7 @@ Boolean contains(int* array, int pid, int size)
 }
 
 
-int killAllChildren()
+void killAllChildren()
 {
 	int parent = 0, child = 0;
 	FILE* out = popen("ps -A -o ppid= -o pid=", "r");
@@ -522,7 +518,6 @@ int killAllChildren()
 		}
 	}
 	pclose(out);
-  return 1;
 }
 
 void sourceSendMessage(Cell* myCell)

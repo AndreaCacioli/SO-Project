@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
@@ -44,16 +45,33 @@ Grid AllocateMap(int height, int width, int minCap, int maxCap, int minDelay, in
   grid.height = height;
   grid.width = width;
 
-  shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height, IPC_CREAT | 0644);
+  if ((shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height, IPC_CREAT | 0644))==-1){
+    fprintf(stderr,"Error %s:%d: in AllocateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  }
   if (verbose) printf("Finding %lu bytes the array of Cell*, found at place %d\n",sizeof(Cell) * height,shmID);
-  grid.grid = (Cell**)shmat(shmID, NULL, 0);
-  shmctl(shmID, IPC_RMID, NULL);  /* delete after use */
+   if((grid.grid = (Cell**)shmat(shmID, NULL, 0))==NULL){ 
+    fprintf(stderr,"Error %s:%d: in AllocateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+   }
+  if ((shmctl(shmID, IPC_RMID, NULL))==-1){  /* delete after use */
+    fprintf(stderr,"Error %s:%d: in AllocateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  } 
   if (verbose) printf("The grid of the grid has been allocated successfully =D\n");
 
-  shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height * width, IPC_CREAT | 0644);
+  if ((shmID = shmget(IPC_PRIVATE, sizeof(Cell) * height * width, IPC_CREAT | 0644))==-1){
+    fprintf(stderr,"Error %s:%d: in AllocateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  }
   if (verbose) printf("Finding %lu bytes the big Array, found at place %d\n",sizeof(Cell) * height * width,shmID);
   grid.grid[0] = (Cell*)shmat(shmID, NULL, 0);
-  shmctl(shmID, IPC_RMID, NULL);  /* delete after use  */
+
+  if ((shmctl(shmID, IPC_RMID, NULL))==-1){  /* delete after use */
+    fprintf(stderr,"Error %s:%d: in AllocateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  } 
+
   if (verbose) printf("The grid of the grid has been allocated successfully =D\nIndexing Now!\n");
 
   for(i = 0; i < height; i++)
@@ -156,14 +174,28 @@ void placeSources(Grid* grid, int Sour)
 
 int initSem (Grid* grid, Boolean mutex)
 {
-  int i,j;
-  int ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT | 0600/*Read and alter*/);
+  int i,j,ret;
+  if((ret = semget(IPC_PRIVATE,grid->height * grid->width, IPC_CREAT | 0600/*Read and alter*/))==-1){
+    fprintf(stderr,"Error %s:%d: in initSem %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  }
   for(i = 0; i < grid->height; i++)
   {
     for(j = 0; j < grid->width; j++)
     {
-      if(mutex) semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, 1);
-      else semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, grid->grid[i][j].capacity);
+      if(mutex){ 
+        if((semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, 1))==-1){
+          fprintf(stderr,"Error %s:%d: in initSem %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          exit(EXIT_FAILURE);
+        }
+      }
+
+      else {
+        if((semctl(ret, /* semnum= */ cellToSemNum(grid->grid[i][j],grid->width), SETVAL, grid->grid[i][j].capacity))==-1){
+          fprintf(stderr,"Error %s:%d: in initSem %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          exit(EXIT_FAILURE);
+        }
+      }
     }
   }
   return ret;
@@ -171,7 +203,11 @@ int initSem (Grid* grid, Boolean mutex)
 
 Grid* generateMap(int height, int width, int numberOfHoles,int numberOfSources, int minCap, int maxCap, int minDelay, int maxDelay)
 {
-  Grid* grid = malloc(sizeof(Grid));
+  Grid* grid;
+  if((grid = malloc(sizeof(Grid)))==NULL){
+    fprintf(stderr,"Error %s:%d: in generateMap %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    exit(EXIT_FAILURE);
+  }
   *grid = AllocateMap(height,width, minCap, maxCap, minDelay, maxDelay, FALSE);
   placeHoles(grid, numberOfHoles);
   placeSources(grid,numberOfSources);
