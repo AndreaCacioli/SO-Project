@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/sem.h>
+#include <errno.h>
 #include <math.h>
 #include <time.h>
 #include <limits.h>
@@ -25,7 +26,7 @@ void printTaxi(Taxi t)
   printf("-------------------------\n");
 }
 
-void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey)
+int initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(int), int semSetKey)
 {
   int x,y;
   struct sigaction SigHandler;
@@ -37,7 +38,10 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
   } while(!MAPPA->grid[x][y].available || semctl(semSetKey,cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL) <= 0);
 
   /*printf("My semaphore before: %d\n",semctl(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL));*/
-  dec_sem(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width));
+  if((dec_sem(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width)))==-1){
+    fprintf(stderr,"Error %s:%d: in initTaxi %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   /*printf("My semaphore after: %d\n",semctl(semSetKey, cellToSemNum(MAPPA->grid[x][y],MAPPA->width), GETVAL));*/
   taxi->position = MAPPA->grid[x][y];
   taxi->busy = FALSE;
@@ -49,11 +53,21 @@ void initTaxi(Taxi* taxi,Grid* MAPPA, void (*signal_handler)(int), void (*die)(i
 
   bzero(&SigHandler, sizeof(SigHandler));
   SigHandler.sa_handler = signal_handler;
-  sigaction(SIGUSR1, &SigHandler, NULL);
+  if((sigaction(SIGUSR1, &SigHandler, NULL))==-1){
+    fprintf(stderr,"Error %s:%d: in initTaxi %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   SigHandler.sa_handler = die;
-  sigaction(SIGINT, &SigHandler, NULL);
-  sigaction(SIGALRM, &SigHandler, NULL);
+  if((sigaction(SIGINT, &SigHandler, NULL))==-1){
+    fprintf(stderr,"Error %s:%d: in initTaxi %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+  if((sigaction(SIGALRM, &SigHandler, NULL))==-1){
+    fprintf(stderr,"Error %s:%d: in initTaxi %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
 
+  return 0;
  }
 
 
@@ -67,122 +81,223 @@ void setDestination(Taxi* taxi, Cell c)
   taxi->destination = c;
 }
 
-void waitOnCell(Taxi* taxi)
+int waitOnCell(Taxi* taxi)
 {
   struct timespec waitTime;
   waitTime.tv_sec = 0;
   waitTime.tv_nsec = taxi->position.delay;
-  nanosleep(&waitTime,NULL);
+  if((nanosleep(&waitTime,NULL))==-1){
+    fprintf(stderr,"Error %s:%d: in waitOnCell %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return-1;
+  }
+  return 0;
 }
 
-void moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
+int moveUp(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x-1][taxi->position.y]);
   
   alarm(SO_TIMEOUT);
-  waitOnCell(taxi);
+  if((waitOnCell(taxi))==-1){
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return-1;
+  }
 
-  dec_sem(semStartKey, 0);
-  inc_sem(semStartKey, 0);
+  if((dec_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+  if((inc_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   /*If I have come here it means master isn't printing*/
 
-  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
-  currentPosition->crossings++;
-  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
+  if((dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Update starting Cell data*/
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
 
-  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  currentPosition->crossings++;
+
+  if((inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
+  if((dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)))==-1){ /*Wait to be admitted in next cell*/
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
    * 
    *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
   */
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  if((inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Leave Current Cell*/
+    fprintf(stderr,"Error %s:%d: in moveUp %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
   taxi->TTD++;
   alarm(0); 
-
+  return 0;
 }
-void moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEOUT,int semMutexKey)
+int moveDown(Taxi* taxi, Grid* mappa,int semSetKey,int semStartKey, int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x+1][taxi->position.y]);
   
   alarm(SO_TIMEOUT);
-  waitOnCell(taxi);
+  if((waitOnCell(taxi))==-1){
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return-1;
+  }
 
-  dec_sem(semStartKey, 0);
-  inc_sem(semStartKey, 0);
+  if((dec_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+  if((inc_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   /*If I have come here it means master isn't printing*/
 
-  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  if((dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Update starting Cell data*/
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   currentPosition->crossings++;
-  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
+  if((inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
 
-  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  if((dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)))==-1){ /*Wait to be admitted in next cell*/
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
    * 
    *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
   */
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  if((inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Leave Current Cell*/
+    fprintf(stderr,"Error %s:%d: in moveDown %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   taxi->TTD++;
   alarm(0);
+  return 0;
 }
-void moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
+int moveRight(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey,int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y+1]);
   
   alarm(SO_TIMEOUT);
-  waitOnCell(taxi);
+  if((waitOnCell(taxi))==-1){
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return-1;
+  }
 
-  dec_sem(semStartKey, 0);
-  inc_sem(semStartKey, 0);
+  if((dec_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
+  if((inc_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   /*If I have come here it means master isn't printing*/
 
-  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  if((dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Update starting Cell data*/
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+  
   currentPosition->crossings++;
-  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
+  
+  if((inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
 
-  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  if((dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)))==-1){ /*Wait to be admitted in next cell*/
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
    * 
    *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
   */
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  if((inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Leave Current Cell*/
+    fprintf(stderr,"Error %s:%d: in moveRight %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   taxi->TTD++;
   alarm(0);
+  return 0;
 }
-void moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIMEOUT,int semMutexKey)
+int moveLeft(Taxi* taxi, Grid* mappa,int semSetKey, int semStartKey, int SO_TIMEOUT,int semMutexKey)
 {
   Cell* currentPosition = &(mappa->grid[taxi->position.x][taxi->position.y]);
   Cell* newPosition = &(mappa->grid[taxi->position.x][taxi->position.y-1]);
 
   alarm(SO_TIMEOUT);
-  waitOnCell(taxi);
+  if((waitOnCell(taxi))==-1){
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return-1;
+  }
 
-  dec_sem(semStartKey, 0);
-  inc_sem(semStartKey, 0);
+  if((dec_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+  if((inc_sem(semStartKey, 0))==-1){
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   /*If I have come here it means master isn't printing*/
 
-  dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)); /*Update starting Cell data*/
+  if((dec_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Update starting Cell data*/
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   currentPosition->crossings++;
-  inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width));
+  
+  if((inc_sem(semMutexKey, cellToSemNum(*currentPosition, mappa->width)))==-1){
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
 
-  dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)); /*Wait to be admitted in next cell*/
+  if((dec_sem(semSetKey, cellToSemNum(*newPosition, mappa->width)))==-1){ /*Wait to be admitted in next cell*/
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
+
   taxi->position = *newPosition;
   /*
    *  VERY IMPORTANT NOTE: a taxi might be printed in two different nearby cells if the cell it is on is printed between above and below instructions
    * 
    *  There is no way to atomically decrease a semaphore and increase another one so a small time interval between the two modifications exists and could lead to a misleading print.
   */
-  inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)); /*Leave Current Cell*/
+  if((inc_sem(semSetKey, cellToSemNum(*currentPosition, mappa->width)))==-1){ /*Leave Current Cell*/
+    fprintf(stderr,"Error %s:%d: in moveLeft %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   taxi->TTD++;
   alarm(0);
+  return 0;
 }
 
 
@@ -201,18 +316,45 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
       /*Sotto c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
-        moveRight(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
-        moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+          if((moveRight(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+          if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+          if(taxi->position.x + 1 < mappa->height){ 
+            if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+              fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+              return -1;
+            }
+          }
       }
       else
       {
-        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x + 1 < mappa->height) moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+          if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+          if((moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+              fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+              return -1;
+          }
+          if(taxi->position.x + 1 < mappa->height){
+            if((moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+              fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+              return -1;
+            }
+          } 
       }
     }
-    else moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+    else{
+        if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+    } 
   }
 
   else if(taxi->position.x - taxi->destination.x > 0)/*Upwnward direction*/
@@ -222,18 +364,45 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
       /*Sopra c'é un buco!!!*/
       if(taxi->position.y - 1 < 0 && taxi->position.y <= taxi->destination.y)/*É vietato andare a sinistra e la destinazione è "a destra"*/
       {
-        moveRight(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
-        moveUp(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        if((moveRight(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if((moveUp(taxi, mappa,semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.x - 1 >= 0){
+          if((moveUp(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
       else
       {
-        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.x - 1 >= 0) moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if((moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.x - 1 >= 0){
+          if((moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
     }
-    else moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+    else{
+      if((moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+        fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+        return -1;
+      }
+    } 
   }
 
   else if(taxi->position.y - taxi->destination.y < 0)/*Right direction*/
@@ -242,18 +411,45 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if((moveDown(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if((moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.y + 1 < mappa->width){
+          if((moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
       else
       {
-        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y + 1 < mappa->width) moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if((moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if((moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.y + 1 < mappa->width){
+          if((moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
     }
-    else moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+    else{
+      if((moveRight(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+        fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+        return -1;
+      }
+    }
   }
   else if(taxi->position.y - taxi->destination.y > 0)/*Left direction*/
   {
@@ -261,18 +457,45 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)/*É vietato andare a su e la destinazione è "sotto"*/
       {
-        moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
-        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey);
+        if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.y - 1 >= 0){
+          if((moveLeft(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
       else
       {
-        moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
-        if(taxi->position.y - 1 >= 0) moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+        if((moveUp(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+           return -1;
+        }
+        if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+          fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+          return -1;
+        }
+        if(taxi->position.y - 1 >= 0){
+          if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+            fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+            return -1;
+          }
+        }
       }
     }
-    else moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey);
+    else{
+      if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+        fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+        return -1;
+      }
+    }
   }
   return 0;
 }
@@ -361,29 +584,42 @@ void compareTaxi(Taxi* compTaxi, int taxiNumber)
 }
 
 
-void dec_sem (int sem_id, int index)
+int dec_sem (int sem_id, int index)
 {
     struct sembuf sem_op;
     sem_op.sem_num  = index;
     sem_op.sem_op   = -1;
     sem_op.sem_flg = 0;
-    semop(sem_id, &sem_op, 1);
+    if((semop(sem_id, &sem_op, 1))==-1){
+      fprintf(stderr,"Error %s:%d: in dec_sem %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+      return -1;
+    }
+    else 
+      return 0;
 
 }
 
-void inc_sem(int sem_id, int index)
+int inc_sem(int sem_id, int index)
 {
     struct sembuf sem_op;
     sem_op.sem_num  = index;
     sem_op.sem_op   = 1;
     sem_op.sem_flg = 0;
-    semop(sem_id, &sem_op, 1);
+    if((semop(sem_id, &sem_op, 1))==-1){
+      fprintf(stderr,"Error %s:%d: in inc_sem %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+      return -1;
+    }
+    else 
+      return 0;
 }
-void taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id, int semMutexKey)
+int taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id, int semMutexKey)
 {
   char* message = malloc(500);
   alarm(0);
-  inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
+  if((inc_sem(sem_id, cellToSemNum(taxi.position, grid.width)))==-1){
+    fprintf(stderr,"Error %s:%d: in taxiDie %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
+    return -1;
+  }
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);
   free(message);

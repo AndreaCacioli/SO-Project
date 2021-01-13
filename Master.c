@@ -313,7 +313,7 @@ void signal_handler(int signal){
             cleanup(signal);
             break;
 		case SIGUSR1:  /*Only taxi handles this signal*/
-			taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey);
+			if((taxiDie(taxi, fd[WriteEnd], *MAPPA, semSetKey, semStartKey))==-1) TEST_ERROR
             break;
 		case SIGUSR2:  /* linux signal is 12 */
 			SIGsendMSG(); /* sending a msg with SIGUSR2 */
@@ -324,8 +324,8 @@ void signal_handler(int signal){
 void SIGsendMSG(){ /* sending a msg with SIGUSR2 */
 	char* x;
 	char* y;
-	x = malloc(128);
-	y = malloc(128);
+	if((x = malloc(128))==NULL)TEST_ERROR
+	if((y = malloc(128))==NULL)TEST_ERROR
 	printf("Insert a Request: [Format: NumberOfSourceCell x y]\n");
 	printf("NumberOfSourceCell = Cell.x * width + Cell.y + 1\n");
 
@@ -357,7 +357,8 @@ int cmpfunc (const void * a, const void * b) /*returns a > b only used for qsort
 void printTopCells(int nTopCells)
 {
 	int i, j;
-	Cell* crox = malloc(MAPPA->width * MAPPA->height * sizeof(Cell));
+	Cell* crox;
+	if ((crox = malloc(MAPPA->width * MAPPA->height * sizeof(Cell)))==NULL) TEST_ERROR
 	if (crox == NULL) TEST_ERROR
 	/*printf("Heap space for crox has been allocated!\n");*/
 	for(i = 0; i <  MAPPA->height; i++)
@@ -562,7 +563,7 @@ void taxiWork()
 	int nextDestX, nextDestY;
 	close(fd[ReadEnd]); /*Closing Read End*/
 
-	initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey); /*We initialize the taxi structure*/
+	if((initTaxi(&taxi,MAPPA, signal_handler, dieHandler, semSetKey))==-1) TEST_ERROR /*We initialize the taxi structure*/
 
 	findNearestSource(&taxi, sources, SO_SOURCES);
 
