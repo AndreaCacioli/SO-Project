@@ -457,11 +457,11 @@ int move (Taxi* taxi, Grid* mappa, int semSetKey,int semStartKey,int SO_TIMEOUT,
     {
       if(taxi->position.x - 1 < 0 && taxi->position.x <= taxi->destination.x)
       {
-        if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
+        if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
           fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
           return -1;
         }
-        if((moveDown(taxi, mappa, semSetKey,semStartKey, SO_TIMEOUT, semMutexKey))==-1){
+        if((moveLeft(taxi, mappa, semSetKey, semStartKey,SO_TIMEOUT, semMutexKey))==-1){
           fprintf(stderr,"Error %s:%d: in move %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
           return -1;
         }
