@@ -634,10 +634,7 @@ int taxiDie(Taxi taxi, int fdWrite, Grid grid, int sem_id, int semMutexKey)
 
   alarm(0);
   
-  if((inc_sem(sem_id, cellToSemNum(taxi.position, grid.width)))==-1){
-    fprintf(stderr,"Error %s:%d: in taxiDie %d (%s)\n",__FILE__,__LINE__,errno,strerror(errno));
-    return -1;
-  }
+  inc_sem(sem_id, cellToSemNum(taxi.position, grid.width));
   sprintf(message, "%d %d %d %d %d %d %d %f %d\n", getpid(), taxi.position.x, taxi.position.y, taxi.destination.x , taxi.destination.y, taxi.busy, taxi.TTD, taxi.TLT, taxi.totalTrips); /*The \n is the message terminator*/
   sendMsgOnPipe(message,fdWrite);
   free(message);
